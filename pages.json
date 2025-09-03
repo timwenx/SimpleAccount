@@ -1,0 +1,88 @@
+{
+	"pages": [
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "我的账本"
+			}
+		},
+		{
+			"path": "pages/add/add",
+			"style": {
+				"navigationBarTitleText": "记一笔"
+			}
+		},
+		{
+			"path": "pages/statistics/statistics",
+			"style": {
+				"navigationBarTitleText": "统计"
+			}
+		},
+		{
+			"path": "pages/category/category",
+			"style": {
+				"navigationBarTitleText": "分类管理"
+			}
+		},
+		{
+			"path": "pages/profile/profile",
+			"style": {
+				"navigationBarTitleText": "我的"
+			}
+		},
+		{
+			"path": "pages/category-detail/category-detail",
+			"style": {
+				"navigationBarTitleText": "分类详情"
+			}
+		},
+		{
+			"path": "pages/icon-manage/icon-manage",
+			"style": {
+				"navigationBarTitleText": "图标管理"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "white",
+		"navigationBarTitleText": "我的账本",
+		"navigationBarBackgroundColor": "#007AFF",
+		"backgroundColor": "#F5F5F5"
+	},
+	"tabBar": {
+		"color": "#999999",
+		"selectedColor": "#007AFF", 
+		"backgroundColor": "#ffffff",
+		"borderStyle": "white",
+		"position": "bottom",
+		"height": "50px",
+		"fontSize": "12px",
+		"list": [
+			{
+				"pagePath": "pages/index/index",
+				"text": "首页",
+				"iconPath": "static/tab-home.png",
+				"selectedIconPath": "static/tab-home-active.png"
+			},
+			{
+				"pagePath": "pages/statistics/statistics", 
+				"text": "统计",
+				"iconPath": "static/tab-stats.png",
+				"selectedIconPath": "static/tab-stats-active.png"
+			},
+			{
+				"pagePath": "pages/category/category",
+				"text": "分类",
+				"iconPath": "static/tab-category.png",
+				"selectedIconPath": "static/tab-category-active.png"
+			},
+			{
+				"pagePath": "pages/profile/profile",
+				"text": "我的",
+				"iconPath": "static/tab-profile.png",
+				"selectedIconPath": "static/tab-profile-active.png"
+			}
+		]
+	},
+	"uniIdRouter": {}
+}
