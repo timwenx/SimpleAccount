@@ -10,12 +10,12 @@
 
 ### 📱 立即下载
 <p align="center">
-  <a href="https://github.com/timwenx/SimpleAccount/releases">
+  <a href="https://gitee.com/timwenx/simple-account/releases/">
     <img src="https://img.shields.io/badge/下载-最新版本-green?style=for-the-badge&logo=download" alt="下载最新版本">
   </a>
 </p>
 
-> 🔥 **获取最新版本**: 前往 [Releases](https://github.com/timwenx/SimpleAccount/releases) 页面下载适合你设备的安装包
+> 🔥 **获取最新版本**: 前往 [Releases](https://gitee.com/timwenx/simple-account/releases/) 页面下载适合你设备的安装包
 
 ### 🎯 核心功能
 - ✅ 本地数据存储，隐私安全
