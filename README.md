@@ -1,11 +1,19 @@
-# SimpleAccount 📊
+# 简帐 📊
 
-一款简洁优雅的本地记账应用，采用 uni-app 框架开发，支持多端运行。
+<p align="center">
+  <img src="unpackage/res/icons/1024x1024.png" width="120" alt="简帐应用图标">
+</p>
+
+<p align="center">一款简洁优雅的本地记账应用，采用 uni-app 框架开发，支持多端运行。</p>
 
 ## 🚀 快速开始
 
 ### 📱 立即下载
-[![下载 APK](https://img.shields.io/badge/下载-Android%20APK-green?style=for-the-badge&logo=android)](app/apk/1.0.apk)
+<p align="center">
+  <a href="app/apk/1.0.apk">
+    <img src="https://img.shields.io/badge/下载-Android%20APK-green?style=for-the-badge&logo=android" alt="下载 APK">
+  </a>
+</p>
 
 > 🔥 **最新版本**: v1.0 | 💾 **安装包大小**: ~5MB | 📱 **支持系统**: Android 5.0+
 
@@ -68,7 +76,7 @@ pages/
 1. **克隆项目**
    ```bash
    git clone <repository-url>
-   cd SimpleAccount
+   cd 简帐
    ```
 
 2. **使用 HBuilderX**
