@@ -10,12 +10,12 @@
 
 ### 📱 立即下载
 <p align="center">
-  <a href="app/apk/1.0.apk">
-    <img src="https://img.shields.io/badge/下载-Android%20APK-green?style=for-the-badge&logo=android" alt="下载 APK">
+  <a href="/releases">
+    <img src="https://img.shields.io/badge/下载-最新版本-green?style=for-the-badge&logo=download" alt="下载最新版本">
   </a>
 </p>
 
-> 🔥 **最新版本**: v1.0 | 💾 **安装包大小**: ~5MB | 📱 **支持系统**: Android 5.0+
+> 🔥 **获取最新版本**: 前往 [Releases](/releases) 页面下载适合你设备的安装包
 
 ### 🎯 核心功能
 - ✅ 本地数据存储，隐私安全
@@ -58,13 +58,7 @@ pages/
 
 ## 🛠️ 安装运行
 
-### 📱 直接安装 (推荐)
-
-**Android 用户**
-- 下载 [app/apk/1.0.apk](app/apk/1.0.apk) 
-- 在手机上安装即可直接使用
-
-### 🔧 开发环境
+###  开发环境
 
 #### 环境要求
 - Node.js 14+
