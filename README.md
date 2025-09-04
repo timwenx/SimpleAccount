@@ -10,12 +10,18 @@
 
 ### 📱 立即下载
 <p align="center">
+  <a href="https://github.com/timwenx/SimpleAccount/releases/">
+    <img src="https://img.shields.io/badge/GitHub-最新版本-blue?style=for-the-badge&logo=github" alt="GitHub下载">
+  </a>
+  &nbsp;&nbsp;
   <a href="https://gitee.com/timwenx/simple-account/releases/">
-    <img src="https://img.shields.io/badge/下载-最新版本-green?style=for-the-badge&logo=download" alt="下载最新版本">
+    <img src="https://img.shields.io/badge/Gitee-最新版本-red?style=for-the-badge&logo=gitee" alt="Gitee下载">
   </a>
 </p>
 
-> 🔥 **获取最新版本**: 前往 [Releases](https://gitee.com/timwenx/simple-account/releases/) 页面下载适合你设备的安装包
+> 🔥 **获取最新版本**: 
+> - 🌍 **国际用户**: 前往 [GitHub Releases](https://github.com/timwenx/SimpleAccount/releases/) 下载
+> - 🇨🇳 **国内用户**: 前往 [Gitee Releases](https://gitee.com/timwenx/simple-account/releases/) 下载
 
 ### 🎯 核心功能
 - ✅ 本地数据存储，隐私安全
