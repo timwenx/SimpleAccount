@@ -1,5 +1,9 @@
 <template>
-	<view class="container">
+	<scroll-view 
+		class="container" 
+		scroll-y="true" 
+		@scrolltolower="loadMore"
+		lower-threshold="100">
 		<!-- 顶部统计卡片 -->
 		<view class="summary-card">
 			<view class="card-decoration"></view>
@@ -99,42 +103,68 @@
 				</view>
 			</view>
 			
-			<view v-if="records.length === 0" class="empty-state">
+			<view v-if="groupedRecords.length === 0" class="empty-state">
 				<text class="empty-text">还没有记录，快去记一笔吧！</text>
 			</view>
 			
-			<view v-for="record in records" :key="record.id" class="record-wrapper">
-				<view class="record-item" 
-					@click="showRecordDetail(record)"
-					@touchstart="onTouchStart($event, record.id)"
-					@touchmove="onTouchMove($event, record.id)"
-					@touchend="onTouchEnd($event, record.id)"
-					:style="{transform: `translateX(${getTranslateX(record.id)}px)`}">
-					<view class="record-left">
-						<view class="record-category">
-							<text class="category-icon">{{record.categoryIcon}}</text>
-							<text class="category-name">{{record.categoryName}}</text>
-						</view>
-						<text class="record-note" v-if="record.note">{{record.note}}</text>
+			<!-- 按日期分组显示记录 -->
+			<view v-for="(group, groupIndex) in groupedRecords" :key="group.date" class="record-group">
+				<!-- 日期分组标题 -->
+				<view class="date-group-header">
+					<view class="date-info">
+						<text class="date-text">{{group.dateText}}</text>
+						<text class="date-weekday">{{group.weekday}}</text>
 					</view>
-					<view class="record-right">
-						<text class="record-amount" :class="record.type">
-							{{record.type === 'expense' ? '-' : '+'}}¥{{record.amount}}
-						</text>
-						<text class="record-time">{{formatTime(record.time)}}</text>
+					<view class="date-summary">
+						<text class="date-expense" v-if="group.totalExpense > 0">支出 ¥{{group.totalExpense}}</text>
+						<text class="date-income" v-if="group.totalIncome > 0">收入 ¥{{group.totalIncome}}</text>
 					</view>
 				</view>
-				<view class="action-buttons">
-					<view class="edit-btn" @click="editRecord(record)">
-						<text class="edit-text">编辑</text>
+				
+				<!-- 该日期下的记录 -->
+				<view v-for="record in group.records" :key="record.id" class="record-wrapper">
+					<view class="record-item" 
+						@click="showRecordDetail(record)"
+						@touchstart="onTouchStart($event, record.id)"
+						@touchmove="onTouchMove($event, record.id)"
+						@touchend="onTouchEnd($event, record.id)"
+						:style="{transform: `translateX(${getTranslateX(record.id)}px)`}">
+						<view class="record-left">
+							<view class="record-category">
+								<text class="category-icon">{{record.categoryIcon}}</text>
+								<text class="category-name">{{record.categoryName}}</text>
+							</view>
+							<text class="record-note" v-if="record.note">{{record.note}}</text>
+						</view>
+						<view class="record-right">
+							<text class="record-amount" :class="record.type">
+								{{record.type === 'expense' ? '-' : '+'}}¥{{record.amount}}
+							</text>
+							<text class="record-time">{{formatTimeOnly(record.time)}}</text>
+						</view>
 					</view>
-					<view class="delete-btn" @click="deleteRecord(record)">
-						<text class="delete-text">删除</text>
+					<view class="action-buttons">
+						<view class="edit-btn" @click="editRecord(record)">
+							<text class="edit-text">编辑</text>
+						</view>
+						<view class="delete-btn" @click="deleteRecord(record)">
+							<text class="delete-text">删除</text>
+						</view>
 					</view>
 				</view>
 			</view>
+			
+			<!-- 加载状态提示 -->
+			<view v-if="hasMore && groupedRecords.length > 0 && isLoading" class="loading-indicator">
+				<text class="loading-text">加载中...</text>
+			</view>
+			
+			<!-- 没有更多数据提示 -->
+			<view v-if="!hasMore && groupedRecords.length > 0" class="no-more">
+				<text class="no-more-text">已显示全部记录</text>
+			</view>
 		</view>
-	</view>
+	</scroll-view>
 </template>
 
 <script>
@@ -143,6 +173,7 @@
 			return {
 				records: [],
 				allRecords: [], // 存储所有记录
+				groupedRecords: [], // 按日期分组的记录
 				monthExpense: 0,
 				monthIncome: 0,
 				monthBalance: 0,
@@ -150,6 +181,11 @@
 				totalRecords: 0,
 				avgDailyExpense: 0,
 				touchData: {}, // 存储每个item的触摸数据
+				// 分页相关
+				currentPage: 1,
+				pageSize: 20,
+				hasMore: true,
+				isLoading: false,
 				// 筛选相关
 				timeOptions: ['全部时间', '今天', '本周', '本月', '本年', '自定义范围'],
 				selectedTimeIndex: 0,
@@ -272,7 +308,14 @@
 					filteredRecords = filteredRecords.filter(record => record.categoryName === categoryName)
 				}
 				
-				this.records = filteredRecords.slice(0, 50) // 限制显示50条
+				this.records = filteredRecords
+				
+				// 重置分页状态
+				this.currentPage = 1
+				this.hasMore = true
+				
+				// 按日期分组并分页显示
+				this.groupRecordsByDate()
 			},
 			
 			// 按时间筛选
@@ -318,6 +361,97 @@
 					this.customEndDate = ''
 				}
 				this.filterRecords()
+			},
+			
+			// 按日期分组记录
+			groupRecordsByDate() {
+				const groupedMap = new Map()
+				
+				// 获取当前页应该显示的记录
+				const totalRecords = this.records
+				const startIndex = 0
+				const endIndex = this.currentPage * this.pageSize
+				const displayRecords = totalRecords.slice(startIndex, endIndex)
+				
+				// 检查是否还有更多数据
+				this.hasMore = endIndex < totalRecords.length
+				
+				// 按日期分组
+				displayRecords.forEach(record => {
+					const date = new Date(record.time)
+					const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+					
+					if (!groupedMap.has(dateKey)) {
+						groupedMap.set(dateKey, {
+							date: dateKey,
+							dateText: this.formatDateText(date),
+							weekday: this.getWeekday(date),
+							records: [],
+							totalExpense: 0,
+							totalIncome: 0
+						})
+					}
+					
+					const group = groupedMap.get(dateKey)
+					group.records.push(record)
+					
+					if (record.type === 'expense') {
+						group.totalExpense += parseFloat(record.amount)
+					} else {
+						group.totalIncome += parseFloat(record.amount)
+					}
+				})
+				
+				// 转换为数组并按日期倒序排列
+				this.groupedRecords = Array.from(groupedMap.values()).map(group => ({
+					...group,
+					totalExpense: group.totalExpense.toFixed(2),
+					totalIncome: group.totalIncome.toFixed(2)
+				})).sort((a, b) => new Date(b.date) - new Date(a.date))
+			},
+			
+			// 格式化日期显示文本
+			formatDateText(date) {
+				const now = new Date()
+				const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+				const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
+				const recordDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+				
+				if (recordDate.getTime() === today.getTime()) {
+					return '今天'
+				} else if (recordDate.getTime() === yesterday.getTime()) {
+					return '昨天'
+				} else if (now.getFullYear() === date.getFullYear()) {
+					return `${date.getMonth() + 1}月${date.getDate()}日`
+				} else {
+					return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
+				}
+			},
+			
+			// 获取星期几
+			getWeekday(date) {
+				const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+				return weekdays[date.getDay()]
+			},
+			
+			// 加载更多数据（滚动到底部自动触发）
+			loadMore() {
+				if (this.isLoading || !this.hasMore) return
+				
+				this.isLoading = true
+				
+				// 模拟网络延迟，实际项目中这里是网络请求
+				setTimeout(() => {
+					this.currentPage++
+					this.groupRecordsByDate()
+					this.isLoading = false
+				}, 800) // 增加一点延迟，让用户看到加载状态
+			},
+			
+			// 只格式化时间部分（不包括日期）
+			formatTimeOnly(timeStr) {
+				const date = new Date(timeStr)
+				return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
 			},
 			
 			// 开始日期选择
@@ -533,16 +667,17 @@
 
 <style>
 	.container {
-		padding: 20rpx;
+		padding: 20rpx 60rpx 20rpx 20rpx;
 		background-color: #F5F5F5;
-		min-height: 100vh;
+		height: 100vh;
 	}
 	
 	.summary-card {
 		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 		border-radius: 20rpx;
-		padding: 40rpx;
+		padding: 40rpx 30rpx;
 		margin-bottom: 30rpx;
+		margin-right: 40rpx;
 		position: relative;
 		overflow: hidden;
 		box-shadow: 0 10rpx 30rpx rgba(102, 126, 234, 0.3);
@@ -655,6 +790,7 @@
 	
 	.quick-add {
 		margin-bottom: 30rpx;
+		margin-right: 40rpx;
 	}
 	
 	.add-btn {
@@ -674,6 +810,7 @@
 	.record-list {
 		background-color: white;
 		border-radius: 20rpx;
+		margin-right: 40rpx;
 		overflow: hidden;
 		box-shadow: 0 4rpx 20rpx rgba(0,0,0,0.05);
 	}
@@ -760,6 +897,114 @@
 		font-size: 28rpx;
 	}
 	
+	/* 日期分组样式 */
+	.record-group {
+		margin-bottom: 20rpx;
+	}
+	
+	.date-group-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 20rpx 30rpx 15rpx;
+		background: linear-gradient(135deg, #F8F9FA 0%, #E9ECEF 100%);
+		border-top: 1px solid #E5E5E5;
+		position: sticky;
+		top: 0;
+		z-index: 10;
+	}
+	
+	.date-info {
+		display: flex;
+		align-items: center;
+	}
+	
+	.date-text {
+		font-size: 28rpx;
+		font-weight: bold;
+		color: #333;
+		margin-right: 15rpx;
+	}
+	
+	.date-weekday {
+		font-size: 24rpx;
+		color: #666;
+		background: rgba(102, 126, 234, 0.1);
+		padding: 4rpx 12rpx;
+		border-radius: 12rpx;
+		border: 1px solid rgba(102, 126, 234, 0.2);
+	}
+	
+	.date-summary {
+		display: flex;
+		align-items: center;
+		gap: 15rpx;
+	}
+	
+	.date-expense {
+		font-size: 24rpx;
+		color: #FF6B6B;
+		background: rgba(255, 107, 107, 0.1);
+		padding: 6rpx 12rpx;
+		border-radius: 12rpx;
+		font-weight: 500;
+	}
+	
+	.date-income {
+		font-size: 24rpx;
+		color: #4ECDC4;
+		background: rgba(78, 205, 196, 0.1);
+		padding: 6rpx 12rpx;
+		border-radius: 12rpx;
+		font-weight: 500;
+	}
+	
+	/* 加载指示器样式 */
+	.loading-indicator {
+		padding: 40rpx;
+		text-align: center;
+		background-color: white;
+		border-top: 1px solid #F0F0F0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 20rpx;
+	}
+	
+	.loading-text {
+		color: #667eea;
+		font-size: 28rpx;
+		font-weight: 500;
+	}
+	
+	.loading-indicator::before {
+		content: '';
+		width: 20rpx;
+		height: 20rpx;
+		border: 2rpx solid #E5E5E5;
+		border-top-color: #667eea;
+		border-radius: 50%;
+		animation: spin 1s linear infinite;
+	}
+	
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	
+	.no-more {
+		padding: 30rpx;
+		text-align: center;
+		background-color: white;
+		border-top: 1px solid #F0F0F0;
+	}
+	
+	.no-more-text {
+		color: #999;
+		font-size: 24rpx;
+	}
+	
 	.record-left {
 		flex: 1;
 	}
@@ -831,12 +1076,22 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		padding: 30rpx;
-		border-bottom: 1px solid #F0F0F0;
+		padding: 25rpx 30rpx;
+		border-bottom: 1px solid #F8F8F8;
 		background-color: white;
 		transition: all 0.3s ease;
 		position: relative;
 		z-index: 1;
+	}
+	
+	.record-group .record-item:first-child {
+		border-top: none;
+	}
+	
+	.record-group .record-item:last-child {
+		border-bottom: 1px solid #F0F0F0;
+		border-bottom-left-radius: 0;
+		border-bottom-right-radius: 0;
 	}
 	
 	.record-item:hover {
