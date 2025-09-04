@@ -41,6 +41,18 @@
 			"style": {
 				"navigationBarTitleText": "图标管理"
 			}
+		},
+		{
+			"path": "pages/ai-config/ai-config",
+			"style": {
+				"navigationBarTitleText": "智能体配置"
+			}
+		},
+		{
+			"path": "pages/chat/chat",
+			"style": {
+				"navigationBarTitleText": "智能记账"
+			}
 		}
 	],
 	"globalStyle": {
@@ -63,6 +75,12 @@
 				"text": "首页",
 				"iconPath": "static/tab-home.png",
 				"selectedIconPath": "static/tab-home-active.png"
+			},
+			{
+				"pagePath": "pages/chat/chat",
+				"text": "智能记账",
+				"iconPath": "static/tab-chat.png",
+				"selectedIconPath": "static/tab-chat-active.png"
 			},
 			{
 				"pagePath": "pages/statistics/statistics", 

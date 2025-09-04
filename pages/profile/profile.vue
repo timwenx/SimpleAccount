@@ -9,6 +9,25 @@
 			</view>
 		</view>
 		
+		<!-- AI功能 -->
+		<view class="data-management">
+			<text class="management-title">AI智能功能</text>
+			<!-- <view class="management-item ai-chat-item" @click="goToChat">
+				<view class="management-left">
+					<text class="management-icon">💬</text>
+					<text class="management-text">智能记账聊天</text>
+				</view>
+				<text class="management-arrow">></text>
+			</view> -->
+			<view class="management-item ai-config-item" @click="goToAIConfig">
+				<view class="management-left">
+					<text class="management-icon">🤖</text>
+					<text class="management-text">智能体配置</text>
+				</view>
+				<text class="management-arrow">></text>
+			</view>
+		</view>
+		
 		<!-- 数据管理 -->
 		<view class="data-management">
 			<text class="management-title">数据管理</text>
@@ -94,6 +113,20 @@
 		},
 		
 		methods: {
+			// 跳转到智能记账聊天
+			goToChat() {
+				uni.navigateTo({
+					url: '/pages/chat/chat'
+				})
+			},
+			
+			// 跳转到AI配置页面
+			goToAIConfig() {
+				uni.navigateTo({
+					url: '/pages/ai-config/ai-config'
+				})
+			},
+			
 			goToIconManage() {
 				// 跳转到图标管理页面
 				uni.navigateTo({
@@ -1941,6 +1974,30 @@
 	}
 	
 	/* 特殊项目样式 */
+	.ai-chat-item .management-icon {
+		background: linear-gradient(45deg, #FF6B6B, #FF8E53);
+		border-radius: 50%;
+		color: white;
+		line-height: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 50rpx;
+		height: 50rpx;
+	}
+	
+	.ai-config-item .management-icon {
+		background: linear-gradient(45deg, #4ECDC4, #44A08D);
+		border-radius: 50%;
+		color: white;
+		line-height: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 50rpx;
+		height: 50rpx;
+	}
+	
 	.danger-item .management-text {
 		color: #ff4d4f;
 	}
