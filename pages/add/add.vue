@@ -202,8 +202,9 @@
 			
 			// 加载编辑的记录数据
 			loadEditRecord(recordId) {
+				console.log('加载编辑记录ID:', recordId)
 				const records = uni.getStorageSync('records') || []
-				const record = records.find(item => item.id === recordId)
+				const record = records.find(item => item.id == recordId)
 				
 				if (record) {
 					// 加载记录数据到表单
