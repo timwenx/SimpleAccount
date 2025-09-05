@@ -7,10 +7,10 @@
 		
 		<!-- 类型切换 -->
 		<view class="type-tabs">
-			<view class="tab-item" :class="{active: currentType === 'expense'}" @click="switchType('expense')">
+			<view class="tab-item" :class="{active: currentType == 'expense'}" @click="switchType('expense')">
 				<text class="tab-text">支出</text>
 			</view>
-			<view class="tab-item" :class="{active: currentType === 'income'}" @click="switchType('income')">
+			<view class="tab-item" :class="{active: currentType == 'income'}" @click="switchType('income')">
 				<text class="tab-text">收入</text>
 			</view>
 		</view>
@@ -32,7 +32,7 @@
 				<view v-for="category in currentCategories" 
 					  :key="category.id" 
 					  class="category-item" 
-					  :class="{active: selectedCategory && selectedCategory.id === category.id}"
+					  :class="{active: selectedCategory && selectedCategory.id == category.id}"
 					  @click="selectCategory(category)">
 					<text class="category-icon">{{category.icon}}</text>
 					<text class="category-name">{{category.name}}</text>
@@ -100,7 +100,7 @@
 		
 		computed: {
 			currentCategories() {
-				return this.currentType === 'expense' ? this.expenseCategories : this.incomeCategories
+				return this.currentType == 'expense' ? this.expenseCategories : this.incomeCategories
 			},
 			
 			canSave() {
@@ -144,7 +144,7 @@
 					
 					// 延迟设置分类，确保分类列表已经计算完成
 					this.$nextTick(() => {
-						const category = this.currentCategories.find(cat => cat.id === presetCategory.id)
+						const category = this.currentCategories.find(cat => cat.id == presetCategory.id)
 						if (category) {
 							this.selectedCategory = category
 						}
@@ -186,12 +186,12 @@
 				let expenseCategories = uni.getStorageSync('expenseCategories')
 				let incomeCategories = uni.getStorageSync('incomeCategories')
 				
-				if (!expenseCategories || expenseCategories.length === 0) {
+				if (!expenseCategories || expenseCategories.length == 0) {
 					expenseCategories = defaultExpenseCategories
 					uni.setStorageSync('expenseCategories', expenseCategories)
 				}
 				
-				if (!incomeCategories || incomeCategories.length === 0) {
+				if (!incomeCategories || incomeCategories.length == 0) {
 					incomeCategories = defaultIncomeCategories
 					uni.setStorageSync('incomeCategories', incomeCategories)
 				}
@@ -220,7 +220,7 @@
 					
 					// 设置分类（需要等待分类数据加载完成）
 					this.$nextTick(() => {
-						const category = this.currentCategories.find(cat => cat.id === record.categoryId)
+						const category = this.currentCategories.find(cat => cat.id == record.categoryId)
 						if (category) {
 							this.selectedCategory = category
 						} else {
@@ -394,9 +394,9 @@
 			// 更新现有记录
 			updateRecord() {
 				const records = uni.getStorageSync('records') || []
-				const recordIndex = records.findIndex(item => item.id === this.editingRecordId)
+				const recordIndex = records.findIndex(item => item.id == this.editingRecordId)
 				
-				if (recordIndex === -1) {
+				if (recordIndex == -1) {
 					uni.showToast({
 						title: '记录不存在',
 						icon: 'error'
