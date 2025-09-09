@@ -1893,7 +1893,7 @@
 	.container {
 		background-color: #f5f5f5;
 		min-height: 100vh;
-		padding: 0;
+		padding: 0 0 40rpx 0;
 	}
 	
 	/* 用户信息区域 */

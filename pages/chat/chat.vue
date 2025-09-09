@@ -309,7 +309,7 @@
 							title: '语音识别成功',
 							icon: 'success'
 						})
-						await this.sendMessage(recognizedText)
+						await this.sendMessage(null,recognizedText)
 					} else {
 						uni.showToast({
 							title: '未识别到有效内容',
@@ -540,8 +540,8 @@
 			},
 			
 			// 发送消息
-			async sendMessage(messageText = null) {
-				const message = messageText ? messageText.trim() : this.inputText.trim()
+			async sendMessage(dom,messageText = null) {
+				const message = (messageText || this.inputText).trim()
 				if (!message || this.isLoading) {
 					return
 				}
@@ -642,9 +642,19 @@
 				const recordsData = this.parseRecordsData(aiReply)
 				
 				if (recordsData && recordsData.length > 0) {
-					// 包含记账信息的回复
-					const replyText = aiReply.replace(/\[[^\]]*\]|\{[^}]*\}/g, '').trim() || 
-						`我帮你识别了${recordsData.length}笔记录：`
+					// 包含记账信息的回复 - 清理掉JSON代码块和对象
+					let replyText = aiReply
+						.replace(/```(?:json)?\s*\{[\s\S]*?\}\s*```/g, '') // 移除JSON代码块
+						.replace(/```(?:json)?\s*\[[\s\S]*?\]\s*```/g, '') // 移除JSON数组代码块
+						.replace(/\{[\s\S]*?"type"\s*:\s*"(expense|income)"[\s\S]*?\}/g, '') // 移除JSON对象
+						.replace(/\n\s*\n/g, '\n') // 清理多余的空行
+						.trim()
+					
+					// 如果清理后没有文本，使用默认文本
+					if (!replyText) {
+						replyText = `我帮你识别了${recordsData.length}笔记录：`
+					}
+					
 					this.addMessage('assistant', replyText, recordsData)
 				} else {
 					// 普通对话回复
@@ -655,27 +665,81 @@
 			// 解析记账数据（支持单笔和多笔）
 			parseRecordsData(text) {
 				try {
-					const arrayMatch = text.match(/\[[^\]]*\]/);
-					if (arrayMatch) {
-						const arrayStr = arrayMatch[0]
-						const dataArray = JSON.parse(arrayStr)
-						if (Array.isArray(dataArray) && dataArray.length > 0) {
-							return dataArray.filter(item => this.validateRecordData(item))
+					// 先尝试提取markdown代码块中的JSON
+					const codeBlockMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\}|\[[\s\S]*?\])\s*```/);
+					if (codeBlockMatch) {
+						let jsonStr = codeBlockMatch[1].trim()
+						// 处理转义字符
+						jsonStr = this.unescapeJsonString(jsonStr)
+						const data = JSON.parse(jsonStr)
+						if (Array.isArray(data)) {
+							const validRecords = data.filter(item => this.validateRecordData(item))
+							return validRecords.length > 0 ? validRecords : null
+						} else if (this.validateRecordData(data)) {
+							return [data]
 						}
 					}
 					
+					// 尝试使用更强的正则表达式提取JSON对象
+					const strongObjectMatch = text.match(/\{[\s\S]*?"type"\s*:\s*"(expense|income)"[\s\S]*?\}/);
+					if (strongObjectMatch) {
+						let objectStr = strongObjectMatch[0]
+						objectStr = this.unescapeJsonString(objectStr)
+						const data = JSON.parse(objectStr)
+						if (this.validateRecordData(data)) {
+							return [data]
+						}
+					}
+					
+					// 尝试匹配更宽松的JSON对象（包含换行符）
+					const flexibleObjectMatch = text.match(/\{[^{}]*?"type"[^{}]*?"(expense|income)"[^{}]*?\}/s);
+					if (flexibleObjectMatch) {
+						let objectStr = flexibleObjectMatch[0]
+						objectStr = this.unescapeJsonString(objectStr)
+						const data = JSON.parse(objectStr)
+						if (this.validateRecordData(data)) {
+							return [data]
+						}
+					}
+					
+					// 尝试匹配数组格式
+					const arrayMatch = text.match(/\[[^\]]*\]/);
+					if (arrayMatch) {
+						let arrayStr = arrayMatch[0]
+						arrayStr = this.unescapeJsonString(arrayStr)
+						const dataArray = JSON.parse(arrayStr)
+						if (Array.isArray(dataArray) && dataArray.length > 0) {
+							const validRecords = dataArray.filter(item => this.validateRecordData(item))
+							return validRecords.length > 0 ? validRecords : null
+						}
+					}
+					
+					// 尝试匹配对象格式（最后尝试，较宽松）
 					const objectMatch = text.match(/\{[^}]*\}/);
 					if (objectMatch) {
-						const objectStr = objectMatch[0]
+						let objectStr = objectMatch[0]
+						objectStr = this.unescapeJsonString(objectStr)
 						const data = JSON.parse(objectStr)
 						if (this.validateRecordData(data)) {
 							return [data]
 						}
 					}
 				} catch (error) {
-					// JSON解析失败，忽略
+					console.log('JSON解析失败:', error.message)
 				}
+				
 				return null
+			},
+			
+			// 处理JSON字符串中的转义字符
+			unescapeJsonString(str) {
+				// 将常见的转义字符还原
+				return str.replace(/\\"/g, '"')
+						  .replace(/\\'/g, "'")
+						  .replace(/\\n/g, '\n')
+						  .replace(/\\t/g, '\t')
+						  .replace(/\\r/g, '\r')
+						  .replace(/\\\\/g, '\\')
 			},
 			
 			// 验证记录数据
@@ -1087,15 +1151,15 @@
 		display: flex;
 		flex-direction: column;
 		height: 100vh;
-		background-color: #F5F5F5;
+		background-color: #FAFAFA;
 		max-width: 100vw;
 		overflow-x: hidden;
 	}
 	
 	.chat-container {
 		flex: 1;
-		padding: 20rpx;
-		padding-bottom: 180rpx; /* 调整为更小的空间，因为移除了快捷输入按钮 */
+		padding: 30rpx 20rpx;
+		padding-bottom: 160rpx;
 		overflow-y: auto;
 		overflow-x: hidden;
 		box-sizing: border-box;
@@ -1103,7 +1167,7 @@
 	
 	.message-item {
 		display: flex;
-		margin-bottom: 30rpx;
+		margin-bottom: 35rpx;
 		animation: fadeIn 0.3s ease-in;
 		max-width: 100%;
 		box-sizing: border-box;
@@ -1123,33 +1187,34 @@
 	}
 	
 	.avatar {
-		width: 60rpx;
-		height: 60rpx;
+		width: 55rpx;
+		height: 55rpx;
 		border-radius: 50%;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 28rpx;
+		font-size: 26rpx;
 		flex-shrink: 0;
+		box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.08);
 	}
 	
 	.user-avatar {
-		background: linear-gradient(45deg, #667eea, #764ba2);
+		background: linear-gradient(135deg, #667eea, #764ba2);
 		color: white;
-		margin-left: 20rpx;  /* 用户头像在右边，左边有margin */
+		margin-left: 15rpx;
 	}
 	
 	.assistant-avatar {
-		background: linear-gradient(45deg, #4ECDC4, #44A08D);
+		background: linear-gradient(135deg, #4ECDC4, #44A08D);
 		color: white;
-		margin-right: 20rpx;  /* AI头像在左边，右边有margin */
+		margin-right: 15rpx;
 	}
 	
 	.message-content {
-		max-width: calc(100vw - 160rpx);
+		max-width: calc(100vw - 150rpx);
 		min-width: 100rpx;
-		padding: 20rpx 25rpx;
-		border-radius: 20rpx;
+		padding: 18rpx 22rpx;
+		border-radius: 18rpx;
 		position: relative;
 		display: flex;
 		flex-direction: column;
@@ -1159,16 +1224,17 @@
 	}
 	
 	.user-message .message-content {
-		background: linear-gradient(45deg, #667eea, #764ba2);
+		background: linear-gradient(135deg, #667eea, #764ba2);
 		color: white;
-		border-bottom-right-radius: 8rpx;
+		border-bottom-right-radius: 6rpx;
+		box-shadow: 0 3rpx 12rpx rgba(102, 126, 234, 0.25);
 	}
 	
 	.assistant-message .message-content {
 		background: white;
 		color: #333;
-		border-bottom-left-radius: 8rpx;
-		box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.1);
+		border-bottom-left-radius: 6rpx;
+		box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.06);
 	}
 	
 	.message-text {
@@ -1182,10 +1248,10 @@
 	}
 	
 	.message-time {
-		font-size: 22rpx;
-		opacity: 0.6;
+		font-size: 20rpx;
+		opacity: 0.5;
 		align-self: flex-end;
-		margin-top: 5rpx;
+		margin-top: 8rpx;
 	}
 	
 	/* 用户消息时间左对齐 */
@@ -1206,13 +1272,13 @@
 	
 	.record-card {
 		background: #f8f9ff;
-		border: 1px solid #e5e8ff;
-		border-radius: 15rpx;
-		padding: 20rpx;
-		margin-bottom: 15rpx;
+		border-radius: 12rpx;
+		padding: 18rpx;
+		margin-bottom: 12rpx;
 		max-width: 100%;
 		box-sizing: border-box;
 		overflow-wrap: break-word;
+		box-shadow: 0 1rpx 6rpx rgba(0,0,0,0.04);
 	}
 	
 	.record-header {
@@ -1255,13 +1321,14 @@
 	
 	.confirm-single-btn {
 		width: 100%;
-		background: linear-gradient(45deg, #4ECDC4, #44A08D);
+		background: linear-gradient(135deg, #4ECDC4, #44A08D);
 		color: white;
 		border: none;
-		border-radius: 25rpx;
-		padding: 15rpx 20rpx;
-		font-size: 26rpx;
-		font-weight: 600;
+		border-radius: 20rpx;
+		padding: 12rpx 20rpx;
+		font-size: 24rpx;
+		font-weight: 500;
+		box-shadow: 0 2rpx 8rpx rgba(78, 205, 196, 0.25);
 	}
 	
 	.recorded-single-status {
@@ -1315,12 +1382,13 @@
 		bottom: 0;
 		left: 0;
 		right: 0;
-		background: #F7F7F7;
-		padding: 20rpx;
-		border-top: 1px solid #D7D7D7;
+		background: linear-gradient(to bottom, #FAFAFA, #F5F5F5);
+		padding: 15rpx 20rpx 50rpx;
 		z-index: 999;
 		box-sizing: border-box;
 		max-width: 100vw;
+		box-shadow: 0 -2rpx 15rpx rgba(0,0,0,0.05);
+		border-top: 1rpx solid rgba(0,0,0,0.05);
 	}
 	
 	/* 录音遮罩层 */
@@ -1396,7 +1464,7 @@
 	}
 	
 	.function-buttons {
-		margin-bottom: 20rpx;
+		margin-bottom: 15rpx;
 		display: flex;
 		justify-content: flex-end;
 		width: 100%;
@@ -1404,13 +1472,14 @@
 	}
 	
 	.clear-btn {
-		padding: 10rpx 20rpx;
-		background: #FFF2F2;
-		border: 1px solid #FFCCCB;
-		border-radius: 20rpx;
+		padding: 12rpx 22rpx;
+		background: linear-gradient(135deg, #FFF5F5, #FFEBEB);
+		border-radius: 15rpx;
 		font-size: 22rpx;
 		color: #E74C3C;
 		line-height: 1;
+		border: none;
+		box-shadow: 0 2rpx 6rpx rgba(231, 76, 60, 0.12);
 	}
 	
 	.clear-btn:active {
@@ -1429,21 +1498,22 @@
 	/* 切换按钮 */
 	.voice-toggle-btn,
 	.keyboard-toggle-btn {
-		width: 70rpx;
-		height: 70rpx;
-		background: white;
-		border: 1px solid #D0D0D0;
-		border-radius: 10rpx;
-		font-size: 32rpx;
+		width: 68rpx;
+		height: 68rpx;
+		background: linear-gradient(135deg, #FFFFFF, #F8F9FA);
+		border-radius: 12rpx;
+		font-size: 30rpx;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		transition: all 0.2s ease;
+		border: none;
+		box-shadow: 0 3rpx 10rpx rgba(0,0,0,0.08);
 	}
 	
 	.voice-toggle-btn:active,
 	.keyboard-toggle-btn:active {
-		background: #F0F0F0;
+		background: linear-gradient(135deg, #F0F0F0, #E9ECEF);
 		transform: scale(0.95);
 	}
 	
@@ -1451,11 +1521,10 @@
 	.voice-btn {
 		flex: 1;
 		min-width: 0;
-		height: 70rpx;
-		background: white;
+		height: 68rpx;
+		background: linear-gradient(135deg, #FFFFFF, #F8F9FA);
 		color: #333;
-		border: 1px solid #D0D0D0;
-		border-radius: 10rpx;
+		border-radius: 12rpx;
 		font-size: 28rpx;
 		font-weight: 500;
 		display: flex;
@@ -1463,12 +1532,14 @@
 		justify-content: center;
 		transition: all 0.2s ease;
 		box-sizing: border-box;
+		border: none;
+		box-shadow: 0 3rpx 10rpx rgba(0,0,0,0.08);
 	}
 	
 	.voice-btn.recording {
-		background: #ADADAD;
+		background: linear-gradient(135deg, #6C757D, #5A6268);
 		color: white;
-		border-color: #ADADAD;
+		box-shadow: 0 3rpx 12rpx rgba(108, 117, 125, 0.3);
 	}
 	
 	.voice-btn:disabled {
@@ -1484,31 +1555,27 @@
 	.chat-input {
 		flex: 1;
 		min-width: 0;
-		height: 70rpx;
-		padding: 0 25rpx;
-		border: 1px solid #D0D0D0;
-		border-radius: 10rpx;
+		height: 68rpx;
+		padding: 0 22rpx;
+		border-radius: 12rpx;
 		font-size: 28rpx;
-		background: white;
-		transition: border-color 0.2s ease;
+		background: linear-gradient(135deg, #FFFFFF, #F8F9FA);
+		transition: all 0.2s ease;
 		box-sizing: border-box;
-	}
-	
-	.chat-input:focus {
-		border-color: #1AAD19;
-		outline: none;
+		border: none;
+		box-shadow: 0 3rpx 10rpx rgba(0,0,0,0.08);
 	}
 	
 	/* 发送按钮 */
 	.send-btn {
-		min-width: 120rpx;
+		min-width: 110rpx;
 		width: auto;
-		height: 70rpx;
-		padding: 0 30rpx;
-		background: #1AAD19;
+		height: 68rpx;
+		padding: 0 28rpx;
+		background: linear-gradient(135deg, #1AAD19, #179B16);
 		color: white;
 		border: none;
-		border-radius: 10rpx;
+		border-radius: 12rpx;
 		font-size: 26rpx;
 		font-weight: 500;
 		display: flex;
@@ -1516,16 +1583,19 @@
 		justify-content: center;
 		transition: all 0.2s ease;
 		flex-shrink: 0;
+		box-shadow: 0 3rpx 12rpx rgba(26, 173, 25, 0.3);
 	}
 	
 	.send-btn:disabled {
-		background: #C0C0C0;
-		color: #999;
+		background: linear-gradient(135deg, #E9ECEF, #DEE2E6);
+		color: #ADB5BD;
+		box-shadow: 0 2rpx 6rpx rgba(0,0,0,0.06);
 	}
 	
 	.send-btn:active:not(:disabled) {
-		background: #179B16;
+		background: linear-gradient(135deg, #179B16, #148A13);
 		transform: scale(0.98);
+		box-shadow: 0 2rpx 8rpx rgba(26, 173, 25, 0.35);
 	}
 	
 	.send-text {

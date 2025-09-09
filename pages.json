@@ -65,7 +65,10 @@
 		"navigationBarTextStyle": "white",
 		"navigationBarTitleText": "我的账本",
 		"navigationBarBackgroundColor": "#007AFF",
-		"backgroundColor": "#F5F5F5"
+		"backgroundColor": "#F5F5F5",
+		"app-plus": {
+			"bounce": "none"
+		}
 	},
 	"tabBar": {
 		"color": "#999999",
