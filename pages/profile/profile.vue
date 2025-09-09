@@ -80,7 +80,7 @@
 			<text class="info-title">关于应用</text>
 			<view class="info-item">
 				<text class="info-label">版本号：</text>
-				<text class="info-value">1.0.1</text>
+				<text class="info-value">1.0.2</text>
 			</view>
 			<view class="info-item">
 				<text class="info-label">更新时间：</text>
