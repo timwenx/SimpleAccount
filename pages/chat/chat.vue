@@ -95,21 +95,65 @@
 				</button>
 			</view>
 			
+			<!-- 录音状态遮罩 -->
+			<view class="recording-overlay" v-if="isRecording">
+				<view class="recording-content">
+					<view class="voice-animation">
+						<view class="voice-icon">🎤</view>
+						<view class="wave-container">
+							<view class="wave wave1"></view>
+							<view class="wave wave2"></view>
+							<view class="wave wave3"></view>
+							<view class="wave wave4"></view>
+							<view class="wave wave5"></view>
+						</view>
+					</view>
+					<text class="recording-text">松开 结束</text>
+					<text class="recording-hint">正在录音...</text>
+				</view>
+			</view>
+			
 			<view class="input-row">
-				<input 
-					class="chat-input" 
-					v-model="inputText" 
-					placeholder="说说你的消费，或问我理财问题..." 
-					@confirm="sendMessage"
-					:disabled="isLoading"
-					confirm-type="send"
-				/>
-				<button 
-					class="send-btn" 
-					@click="sendMessage"
-					:disabled="isLoading || !inputText.trim()">
-					{{ isLoading ? '⏳' : '发送' }}
+				<!-- 语音按钮 -->
+				<button class="voice-toggle-btn" @click="toggleInputMode" v-if="!isVoiceMode">
+					🎤
 				</button>
+				
+				<!-- 键盘按钮 -->
+				<button class="keyboard-toggle-btn" @click="toggleInputMode" v-if="isVoiceMode">
+					⌨️
+				</button>
+				
+				<!-- 文本输入模式 -->
+				<template v-if="!isVoiceMode">
+					<input 
+						class="chat-input" 
+						v-model="inputText" 
+						placeholder="输入消息..." 
+						@confirm="sendMessage"
+						:disabled="isLoading"
+						confirm-type="send"
+					/>
+					<button 
+						class="send-btn" 
+						@click="sendMessage"
+						:disabled="isLoading || !inputText.trim()">
+						<text class="send-text">{{ isLoading ? '发送中' : '发送' }}</text>
+					</button>
+				</template>
+				
+				<!-- 语音输入模式 -->
+				<template v-if="isVoiceMode">
+					<button 
+						class="voice-btn" 
+						@touchstart="startVoiceRecording"
+						@touchend="stopVoiceRecording"
+						@touchcancel="stopVoiceRecording"
+						:disabled="isLoading"
+						:class="{ 'recording': isRecording }">
+						<text class="voice-text">{{ isRecording ? '松开 结束' : '按住 说话' }}</text>
+					</button>
+				</template>
 			</view>
 		</view>
 	</view>
@@ -123,16 +167,315 @@
 				inputText: '',
 				isLoading: false,
 				scrollTop: 0,
-				aiConfig: null
+				aiConfig: null,
+				// 语音识别相关
+				isRecording: false,
+				isVoiceMode: false, // 语音输入模式切换
+				voiceConfig: null,
+				recordManager: null,
+				tempAudioPath: ''
 			}
 		},
 		
 		onLoad() {
 			this.loadAIConfig()
+			this.loadVoiceConfig()
 			this.loadChatHistory()
 		},
 		
 		methods: {
+			// 切换输入模式
+			toggleInputMode() {
+				this.isVoiceMode = !this.isVoiceMode
+			},
+			
+			// 加载语音识别配置
+			loadVoiceConfig() {
+				this.voiceConfig = uni.getStorageSync('voiceConfig')
+			},
+			
+			// 开始语音录制
+			startVoiceRecording() {
+				if (!this.voiceConfig) {
+					uni.showModal({
+						title: '需要配置语音识别',
+						content: '请先在"我的"页面配置语音识别服务，才能使用语音记账功能',
+						confirmText: '去配置',
+						success: (res) => {
+							if (res.confirm) {
+								uni.navigateTo({
+									url: '/pages/voice-config/voice-config'
+								})
+							}
+						}
+					})
+					return
+				}
+				
+				if (!this.voiceConfig.appId || !this.voiceConfig.accessKey) {
+					uni.showModal({
+						title: '配置不完整',
+						content: '需要配置App ID和Access Key才能使用语音识别功能',
+						confirmText: '去配置',
+						success: (res) => {
+							if (res.confirm) {
+								uni.navigateTo({
+									url: '/pages/voice-config/voice-config'
+								})
+							}
+						}
+					})
+					return
+				}
+				
+				if (!uni.getRecorderManager) {
+					uni.showToast({
+						title: '当前环境不支持录音功能',
+						icon: 'error'
+					})
+					return
+				}
+				
+				this.isRecording = true
+				this.recordManager = uni.getRecorderManager()
+				
+				this.recordManager.onStart(() => {
+					uni.showToast({
+						title: '开始录音...',
+						icon: 'none',
+						duration: 1000
+					})
+				})
+				
+				this.recordManager.onStop((res) => {
+					this.tempAudioPath = res.tempFilePath
+					if (!res.tempFilePath) {
+						uni.showToast({
+							title: '录音文件无效，请重试',
+							icon: 'error'
+						})
+						this.isRecording = false
+						return
+					}
+					this.processVoiceRecording()
+				})
+				
+				this.recordManager.onError((error) => {
+					this.isRecording = false
+					uni.showToast({
+						title: '录音失败，请重试',
+						icon: 'error'
+					})
+				})
+				
+				this.recordManager.start({
+					duration: 60000,
+					sampleRate: 16000,
+					numberOfChannels: 1,
+					encodeBitRate: 96000,
+					format: 'wav'
+				})
+			},
+			
+			// 停止语音录制
+			stopVoiceRecording() {
+				if (!this.isRecording) return
+				this.isRecording = false
+				if (this.recordManager) {
+					this.recordManager.stop()
+				}
+			},
+			
+			// 处理语音录制结果
+			async processVoiceRecording() {
+				if (!this.tempAudioPath) {
+					uni.showToast({
+						title: '录音文件无效',
+						icon: 'error'
+					})
+					return
+				}
+				
+				uni.showLoading({
+					title: '正在识别语音...'
+				})
+				
+				try {
+					const recognizedText = await this.callFlashAPI()
+					uni.hideLoading()
+					
+					if (recognizedText) {
+						uni.showToast({
+							title: '语音识别成功',
+							icon: 'success'
+						})
+						await this.sendMessage(recognizedText)
+					} else {
+						uni.showToast({
+							title: '未识别到有效内容',
+							icon: 'none'
+						})
+					}
+				} catch (error) {
+					uni.hideLoading()
+					
+					let errorMessage = '语音识别失败，请重试'
+					let showConfigModal = false
+					
+					if (error.message.includes('grant not found') || error.message.includes('验证失败')) {
+						errorMessage = '语音识别配置错误，请前往设置页面重新配置'
+						showConfigModal = true
+					} else if (error.message.includes('不支持') || error.message.includes('无法读取')) {
+						errorMessage = '当前环境不支持语音功能，建议使用文字输入'
+					} else if (error.message.includes('网络') || error.message.includes('timeout')) {
+						errorMessage = '网络连接问题，请检查网络后重试'
+					}
+					
+					if (showConfigModal) {
+						uni.showModal({
+							title: '配置错误',
+							content: errorMessage + '\n\n点击确认前往配置页面',
+							confirmText: '去配置',
+							success: (res) => {
+								if (res.confirm) {
+									uni.navigateTo({
+										url: '/pages/voice-config/voice-config'
+									})
+								}
+							}
+						})
+					} else {
+						uni.showToast({
+							title: errorMessage,
+							icon: 'error'
+						})
+					}
+				}
+			},
+			
+			// 使用Flash API进行语音识别
+			async callFlashAPI() {
+				const recognizeUrl = "https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash"
+				const audioBase64 = await this.getAudioBase64()
+				
+				const headers = {
+					"X-Api-App-Key": this.voiceConfig.appId,
+					"X-Api-Access-Key": this.voiceConfig.accessKey,
+					"X-Api-Resource-Id": "volc.bigasr.auc_turbo",
+					"X-Api-Request-Id": this.generateUUID(),
+					"X-Api-Sequence": "-1",
+					"Content-Type": "application/json"
+				}
+				
+				const requestData = {
+					user: {
+						uid: this.voiceConfig.appId
+					},
+					audio: {
+						data: audioBase64
+					},
+					request: {
+						model_name: this.voiceConfig.modelName || "bigmodel",
+						enable_itn: this.voiceConfig.enableItn !== false,
+						enable_punc: this.voiceConfig.enablePunc !== false,
+						enable_ddc: true,
+						enable_speaker_info: this.voiceConfig.enableSpeakerInfo || false
+					}
+				}
+				
+				const response = await uni.request({
+					url: recognizeUrl,
+					method: 'POST',
+					header: headers,
+					data: requestData,
+					timeout: 30000
+				})
+				
+				if (response.statusCode === 200) {
+					const statusCode = response.header['X-Api-Status-Code']
+					if (statusCode === '20000000') {
+						const result = response.data
+						let recognizedText = ''
+						
+						if (result && result.result && result.result.text) {
+							recognizedText = result.result.text
+						} else if (result && result.data && result.data.result && result.data.result.text) {
+							recognizedText = result.data.result.text
+						} else if (result && result.utterances && result.utterances.length > 0) {
+							recognizedText = result.utterances.map(item => item.text).join('')
+						} else if (result && result.text) {
+							recognizedText = result.text
+						}
+						
+						return recognizedText.trim() || null
+					} else {
+						throw new Error(`语音识别失败: ${response.header['X-Api-Message'] || '未知错误'}`)
+					}
+				} else {
+					throw new Error(`API调用失败: HTTP ${response.statusCode}`)
+				}
+			},
+			
+			// 获取录音文件的Base64编码
+			async getAudioBase64() {
+				return new Promise((resolve, reject) => {
+					if (uni.getFileSystemManager) {
+						uni.getFileSystemManager().readFile({
+							filePath: this.tempAudioPath,
+							encoding: 'base64',
+							success: (res) => {
+								resolve(res.data)
+							},
+							fail: (error) => {
+								this.getAudioBase64Fallback().then(resolve).catch(reject)
+							}
+						})
+					} else {
+						this.getAudioBase64Fallback().then(resolve).catch(reject)
+					}
+				})
+			},
+			
+			// 备用方案：使用 plus.io 读取文件
+			async getAudioBase64Fallback() {
+				return new Promise((resolve, reject) => {
+					if (typeof plus !== 'undefined' && plus.io) {
+						plus.io.resolveLocalFileSystemURL(this.tempAudioPath, (entry) => {
+							entry.file((file) => {
+								const reader = new plus.io.FileReader()
+								reader.onloadend = (evt) => {
+									if (evt.target.result) {
+										const base64Data = evt.target.result.split(',')[1] || evt.target.result
+										resolve(base64Data)
+									} else {
+										reject(new Error('文件读取结果为空'))
+									}
+								}
+								reader.onerror = () => {
+									reject(new Error('FileReader读取失败'))
+								}
+								reader.readAsDataURL(file)
+							}, () => {
+								reject(new Error('获取文件对象失败'))
+							})
+						}, () => {
+							reject(new Error('解析文件路径失败'))
+						})
+					} else {
+						reject(new Error('当前环境无法读取录音文件，建议使用文字输入'))
+					}
+				})
+			},
+			
+			// 生成UUID
+			generateUUID() {
+				return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+					const r = Math.random() * 16 | 0
+					const v = c === 'x' ? r : (r & 0x3 | 0x8)
+					return v.toString(16)
+				})
+			},
+			
 			// 加载AI配置
 			loadAIConfig() {
 				this.aiConfig = uni.getStorageSync('aiConfig')
@@ -197,15 +540,18 @@
 			},
 			
 			// 发送消息
-			async sendMessage() {
-				const message = this.inputText.trim()
-				if (!message || this.isLoading) return
+			async sendMessage(messageText = null) {
+				const message = messageText ? messageText.trim() : this.inputText.trim()
+				if (!message || this.isLoading) {
+					return
+				}
 				
-				// 添加用户消息
 				this.addMessage('user', message)
-				this.inputText = ''
 				
-				// 检查AI配置
+				if (!messageText) {
+					this.inputText = ''
+				}
+				
 				if (!this.aiConfig) {
 					this.addMessage('assistant', '抱歉，AI配置未找到，请在设置中重新配置')
 					return
@@ -217,7 +563,6 @@
 					const response = await this.callAI(message)
 					this.handleAIResponse(response, message)
 				} catch (error) {
-					console.error('AI调用失败:', error)
 					this.addMessage('assistant', '抱歉，AI服务暂时不可用，请稍后再试或检查网络连接')
 				} finally {
 					this.isLoading = false
@@ -310,7 +655,6 @@
 			// 解析记账数据（支持单笔和多笔）
 			parseRecordsData(text) {
 				try {
-					// 首先尝试解析数组格式（多笔记录）
 					const arrayMatch = text.match(/\[[^\]]*\]/);
 					if (arrayMatch) {
 						const arrayStr = arrayMatch[0]
@@ -320,7 +664,6 @@
 						}
 					}
 					
-					// 然后尝试解析对象格式（单笔记录）
 					const objectMatch = text.match(/\{[^}]*\}/);
 					if (objectMatch) {
 						const objectStr = objectMatch[0]
@@ -330,7 +673,7 @@
 						}
 					}
 				} catch (error) {
-					console.log('JSON解析失败:', error)
+					// JSON解析失败，忽略
 				}
 				return null
 			},
@@ -368,22 +711,18 @@
 						const result = await this.processRecord(recordData)
 						results.push(result)
 						
-						// 检查是否有新分类
 						if (result.isNewCategory) {
 							newCategories.push(result.category)
 						}
 					} catch (error) {
-						console.error('处理记录失败:', error)
 						results.push({ success: false, error: error.message })
 					}
 				}
 				
-				// 处理新分类
 				if (newCategories.length > 0) {
 					await this.handleNewCategories(newCategories)
 				}
 				
-				// 更新UI状态
 				const messageIndex = this.messages.findIndex(msg => 
 					msg.recordsData === recordsData
 				)
@@ -392,7 +731,6 @@
 					this.saveChatHistory()
 				}
 				
-				// 显示结果
 				const successCount = results.filter(r => r.success).length
 				if (successCount === recordsData.length) {
 					uni.showToast({
@@ -498,13 +836,11 @@
 			// 确认单笔记录（从多笔记录中）
 			async confirmSingleRecord(record, recordIndex, message) {
 				try {
-					// 检查分类是否存在并获取图标
 					const { categoryIcon, isNewCategory, categoryId } = this.getCategoryIconWithCheck(
 						record.category, 
 						record.type
 					)
 					
-					// 如果是新分类，询问是否添加
 					let finalCategoryId = categoryId
 					if (isNewCategory) {
 						const newCategory = {
@@ -513,58 +849,46 @@
 							type: record.type
 						}
 						const addedCategories = await this.handleNewCategories([newCategory])
-						// 获取新添加分类的ID
 						if (addedCategories && addedCategories.length > 0) {
 							finalCategoryId = addedCategories[0].id
 						}
 					}
 					
-					// 解析时间
 					const recordTime = this.parseRecordTime(record.time)
-					
-					// 生成记录ID
 					const recordId = Date.now() + Math.random() * 1000
 					
-					// 创建记录对象
 					const newRecord = {
 						id: recordId,
 						type: record.type,
 						amount: parseFloat(record.amount).toString(),
 						categoryName: record.category,
-						categoryId: finalCategoryId, // 添加分类ID关联
+						categoryId: finalCategoryId,
 						categoryIcon: categoryIcon,
 						note: record.note || '',
 						time: recordTime.toISOString()
 					}
 					
-					// 保存到本地存储
 					const records = uni.getStorageSync('records') || []
 					records.push(newRecord)
 					uni.setStorageSync('records', records)
 					
-					// 标记这笔记录为已记录
 					message.recordsData[recordIndex].recorded = true
 					
-					// 检查是否所有记录都已处理
 					const allRecorded = message.recordsData.every(r => r.recorded)
 					if (allRecorded) {
 						message.recorded = true
 					}
 					
-					// 保存聊天历史
 					this.saveChatHistory()
 					
-					// 显示成功提示
 					uni.showToast({
 						title: '记账成功！',
 						icon: 'success'
 					})
 					
-					// 添加确认消息
 					this.addMessage('assistant', `✅ 已记录${record.type === 'expense' ? '支出' : '收入'}¥${record.amount} (${record.category})`)
 					
 				} catch (error) {
-					console.error('确认单笔记录失败:', error)
 					uni.showToast({
 						title: '记账失败，请重试',
 						icon: 'error'
@@ -588,46 +912,36 @@
 					}
 				}
 				
-				// 新分类，生成图标
 				const newIcon = this.generateCategoryIcon(categoryName, type)
 				return { 
 					categoryIcon: newIcon, 
-					categoryId: null, // 新分类暂时没有ID，需要在添加后获取
+					categoryId: null,
 					isNewCategory: true 
 				}
 			},
 			
 			// 生成新分类图标
 			generateCategoryIcon(categoryName, type) {
-				// 智能匹配图标
 				const iconMap = {
-					// 餐饮相关
 					'早餐': '🥞', '午餐': '🍱', '晚餐': '🍽️', '夜宵': '🌙',
 					'咖啡': '☕', '奶茶': '🧋', '饮料': '🥤',
-					// 交通相关  
 					'打车': '🚗', '地铁': '🚇', '公交': '🚌', '油费': '⛽',
-					// 购物相关
 					'零食': '🍿', '水果': '🍎', '蔬菜': '🥬', '肉类': '🥩',
-					// 生活相关
 					'洗衣': '👕', '理发': '💇', '美容': '💄', '健身': '💪',
 					'宠物': '🐱', '花卉': '🌸', '书籍': '📚', 
-					// 收入相关
 					'兼职': '💼', '奖励': '🎁', '补贴': '💰'
 				}
 				
-				// 先尝试精确匹配
 				if (iconMap[categoryName]) {
 					return iconMap[categoryName]
 				}
 				
-				// 模糊匹配
 				for (const [key, icon] of Object.entries(iconMap)) {
 					if (categoryName.includes(key) || key.includes(categoryName)) {
 						return icon
 					}
 				}
 				
-				// 根据类型返回默认图标
 				return type === 'expense' ? '💰' : '💎'
 			},
 			
@@ -666,7 +980,6 @@
 				const addedCategories = []
 				
 				newCategories.forEach((category, index) => {
-					// 确保每个分类有唯一ID
 					const uniqueId = Date.now() + index * 1000 + Math.floor(Math.random() * 1000)
 					
 					const newCategoryItem = {
@@ -681,7 +994,6 @@
 						incomeCategories.push(newCategoryItem)
 					}
 					
-					// 记录添加的分类信息
 					addedCategories.push({
 						...category,
 						id: uniqueId
@@ -691,7 +1003,6 @@
 				uni.setStorageSync('expenseCategories', expenseCategories)
 				uni.setStorageSync('incomeCategories', incomeCategories)
 				
-				// 返回新添加的分类信息，包含生成的ID
 				return addedCategories
 			},
 			
@@ -717,9 +1028,39 @@
 			// 格式化时间
 			formatTime(timestamp) {
 				const date = new Date(timestamp)
+				const now = new Date()
+				
+				// 获取今天、昨天、前天的日期（只比较年月日）
+				const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+				const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
+				const dayBeforeYesterday = new Date(today.getTime() - 2 * 24 * 60 * 60 * 1000)
+				
+				const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+				
+				// 格式化时分
 				const hours = date.getHours().toString().padStart(2, '0')
 				const minutes = date.getMinutes().toString().padStart(2, '0')
-				return `${hours}:${minutes}`
+				const timeStr = `${hours}:${minutes}`
+				
+				// 根据日期判断显示格式
+				if (messageDate.getTime() === today.getTime()) {
+					return `今天 ${timeStr}`
+				} else if (messageDate.getTime() === yesterday.getTime()) {
+					return `昨天 ${timeStr}`
+				} else if (messageDate.getTime() === dayBeforeYesterday.getTime()) {
+					return `前天 ${timeStr}`
+				} else if (date.getFullYear() === now.getFullYear()) {
+					// 同年但不是近三天，显示月日
+					const month = (date.getMonth() + 1).toString().padStart(2, '0')
+					const day = date.getDate().toString().padStart(2, '0')
+					return `${month}-${day} ${timeStr}`
+				} else {
+					// 不同年，显示完整日期
+					const year = date.getFullYear()
+					const month = (date.getMonth() + 1).toString().padStart(2, '0')
+					const day = date.getDate().toString().padStart(2, '0')
+					return `${year}-${month}-${day} ${timeStr}`
+				}
 			},
 			
 			// 滚动到底部
@@ -736,11 +1077,19 @@
 </script>
 
 <style scoped>
+	/* 全局防止水平溢出 */
+	* {
+		max-width: 100%;
+		box-sizing: border-box;
+	}
+	
 	.container {
 		display: flex;
 		flex-direction: column;
 		height: 100vh;
 		background-color: #F5F5F5;
+		max-width: 100vw;
+		overflow-x: hidden;
 	}
 	
 	.chat-container {
@@ -748,12 +1097,16 @@
 		padding: 20rpx;
 		padding-bottom: 180rpx; /* 调整为更小的空间，因为移除了快捷输入按钮 */
 		overflow-y: auto;
+		overflow-x: hidden;
+		box-sizing: border-box;
 	}
 	
 	.message-item {
 		display: flex;
 		margin-bottom: 30rpx;
 		animation: fadeIn 0.3s ease-in;
+		max-width: 100%;
+		box-sizing: border-box;
 	}
 	
 	@keyframes fadeIn {
@@ -793,12 +1146,16 @@
 	}
 	
 	.message-content {
-		max-width: 500rpx;
+		max-width: calc(100vw - 160rpx);
+		min-width: 100rpx;
 		padding: 20rpx 25rpx;
 		border-radius: 20rpx;
 		position: relative;
 		display: flex;
 		flex-direction: column;
+		word-wrap: break-word;
+		overflow-wrap: break-word;
+		box-sizing: border-box;
 	}
 	
 	.user-message .message-content {
@@ -819,6 +1176,9 @@
 		line-height: 1.6;
 		margin-bottom: 8rpx;
 		word-wrap: break-word;
+		overflow-wrap: break-word;
+		white-space: pre-wrap;
+		max-width: 100%;
 	}
 	
 	.message-time {
@@ -850,6 +1210,9 @@
 		border-radius: 15rpx;
 		padding: 20rpx;
 		margin-bottom: 15rpx;
+		max-width: 100%;
+		box-sizing: border-box;
+		overflow-wrap: break-word;
 	}
 	
 	.record-header {
@@ -952,17 +1315,92 @@
 		bottom: 0;
 		left: 0;
 		right: 0;
-		background: white;
+		background: #F7F7F7;
 		padding: 20rpx;
-		border-top: 1px solid #E5E5E5;
-		box-shadow: 0 -2rpx 10rpx rgba(0,0,0,0.1);
+		border-top: 1px solid #D7D7D7;
 		z-index: 999;
+		box-sizing: border-box;
+		max-width: 100vw;
+	}
+	
+	/* 录音遮罩层 */
+	.recording-overlay {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background: rgba(0, 0, 0, 0.6);
+		z-index: 1000;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	
+	.recording-content {
+		background: rgba(0, 0, 0, 0.8);
+		border-radius: 20rpx;
+		padding: 60rpx 40rpx;
+		text-align: center;
+		color: white;
+	}
+	
+	.voice-animation {
+		margin-bottom: 30rpx;
+		position: relative;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	
+	.voice-icon {
+		font-size: 60rpx;
+		margin-right: 20rpx;
+	}
+	
+	.wave-container {
+		display: flex;
+		align-items: center;
+		gap: 6rpx;
+	}
+	
+	.wave {
+		width: 6rpx;
+		background: #1AAD19;
+		border-radius: 3rpx;
+		animation: wave-animation 1.2s ease-in-out infinite;
+	}
+	
+	.wave1 { height: 20rpx; animation-delay: 0s; }
+	.wave2 { height: 35rpx; animation-delay: 0.1s; }
+	.wave3 { height: 50rpx; animation-delay: 0.2s; }
+	.wave4 { height: 35rpx; animation-delay: 0.3s; }
+	.wave5 { height: 20rpx; animation-delay: 0.4s; }
+	
+	@keyframes wave-animation {
+		0%, 100% { transform: scaleY(0.3); }
+		50% { transform: scaleY(1); }
+	}
+	
+	.recording-text {
+		font-size: 32rpx;
+		font-weight: bold;
+		margin-bottom: 10rpx;
+		display: block;
+	}
+	
+	.recording-hint {
+		font-size: 24rpx;
+		opacity: 0.8;
+		display: block;
 	}
 	
 	.function-buttons {
 		margin-bottom: 20rpx;
 		display: flex;
 		justify-content: flex-end;
+		width: 100%;
+		box-sizing: border-box;
 	}
 	
 	.clear-btn {
@@ -984,35 +1422,114 @@
 		display: flex;
 		align-items: center;
 		gap: 15rpx;
+		width: 100%;
+		box-sizing: border-box;
 	}
 	
+	/* 切换按钮 */
+	.voice-toggle-btn,
+	.keyboard-toggle-btn {
+		width: 70rpx;
+		height: 70rpx;
+		background: white;
+		border: 1px solid #D0D0D0;
+		border-radius: 10rpx;
+		font-size: 32rpx;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: all 0.2s ease;
+	}
+	
+	.voice-toggle-btn:active,
+	.keyboard-toggle-btn:active {
+		background: #F0F0F0;
+		transform: scale(0.95);
+	}
+	
+	/* 语音输入按钮 */
+	.voice-btn {
+		flex: 1;
+		min-width: 0;
+		height: 70rpx;
+		background: white;
+		color: #333;
+		border: 1px solid #D0D0D0;
+		border-radius: 10rpx;
+		font-size: 28rpx;
+		font-weight: 500;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: all 0.2s ease;
+		box-sizing: border-box;
+	}
+	
+	.voice-btn.recording {
+		background: #ADADAD;
+		color: white;
+		border-color: #ADADAD;
+	}
+	
+	.voice-btn:disabled {
+		opacity: 0.6;
+	}
+	
+	.voice-text {
+		font-size: 28rpx;
+		font-weight: 500;
+	}
+	
+	/* 文本输入框 */
 	.chat-input {
 		flex: 1;
-		height: 80rpx;
+		min-width: 0;
+		height: 70rpx;
 		padding: 0 25rpx;
-		border: 1px solid #E5E5E5;
-		border-radius: 40rpx;
+		border: 1px solid #D0D0D0;
+		border-radius: 10rpx;
 		font-size: 28rpx;
-		background: #FAFAFA;
+		background: white;
+		transition: border-color 0.2s ease;
+		box-sizing: border-box;
 	}
 	
 	.chat-input:focus {
-		border-color: #667eea;
-		background: white;
+		border-color: #1AAD19;
+		outline: none;
 	}
 	
+	/* 发送按钮 */
 	.send-btn {
-		width: 120rpx;
-		height: 80rpx;
-		background: linear-gradient(45deg, #667eea, #764ba2);
+		min-width: 120rpx;
+		width: auto;
+		height: 70rpx;
+		padding: 0 30rpx;
+		background: #1AAD19;
 		color: white;
 		border: none;
-		border-radius: 40rpx;
-		font-size: 28rpx;
-		font-weight: 600;
+		border-radius: 10rpx;
+		font-size: 26rpx;
+		font-weight: 500;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: all 0.2s ease;
+		flex-shrink: 0;
 	}
 	
 	.send-btn:disabled {
-		opacity: 0.5;
+		background: #C0C0C0;
+		color: #999;
+	}
+	
+	.send-btn:active:not(:disabled) {
+		background: #179B16;
+		transform: scale(0.98);
+	}
+	
+	.send-text {
+		font-size: 26rpx;
+		font-weight: 500;
 	}
 </style>
