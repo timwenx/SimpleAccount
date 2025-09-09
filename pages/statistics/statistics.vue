@@ -33,8 +33,8 @@
 			</view>
 			<view class="overview-item">
 				<text class="overview-label">净收入</text>
-				<text class="overview-value" :class="netIncome >= 0 ? 'net-positive' : 'net-negative'">
-					{{netIncome >= 0 ? '+' : '-'}}¥{{Math.abs(netIncome)}}
+				<text class="overview-value" :class="parseFloat(netIncome) >= 0 ? 'net-positive' : 'net-negative'">
+					{{parseFloat(netIncome) >= 0 ? '+' : '-'}}¥{{Math.abs(parseFloat(netIncome)).toFixed(2)}}
 				</text>
 			</view>
 		</view>
@@ -212,7 +212,39 @@
 				expenseStats: [],
 				incomeStats: [],
 				expenseTrendData: [],
-				incomeTrendData: []
+				incomeTrendData: [],
+				// 金额计算工具函数，解决浮点数精度问题
+				moneyCalculator: {
+					// 金额加法
+					add(a, b) {
+						const factor = 100
+						return Math.round((parseFloat(a) * factor + parseFloat(b) * factor)) / factor
+					},
+					
+					// 金额减法
+					subtract(a, b) {
+						const factor = 100
+						return Math.round((parseFloat(a) * factor - parseFloat(b) * factor)) / factor
+					},
+					
+					// 金额乘法
+					multiply(a, b) {
+						const factor = 100
+						return Math.round(parseFloat(a) * parseFloat(b) * factor) / factor
+					},
+					
+					// 金额除法
+					divide(a, b) {
+						if (parseFloat(b) === 0) return 0
+						const factor = 100
+						return Math.round((parseFloat(a) / parseFloat(b)) * factor) / factor
+					},
+					
+					// 格式化金额，保留两位小数
+					format(amount) {
+						return parseFloat(amount).toFixed(2)
+					}
+				}
 			}
 		},
 		
@@ -227,7 +259,9 @@
 			},
 			
 			netIncome() {
-				return parseFloat(this.totalIncome) - parseFloat(this.totalExpense)
+				return this.moneyCalculator.format(
+					this.moneyCalculator.subtract(parseFloat(this.totalIncome), parseFloat(this.totalExpense))
+				)
 			}
 		},
 		
@@ -292,14 +326,14 @@
 				records.forEach(record => {
 					const amount = parseFloat(record.amount)
 					if (record.type === 'expense') {
-						expense += amount
+						expense = this.moneyCalculator.add(expense, amount)
 					} else {
-						income += amount
+						income = this.moneyCalculator.add(income, amount)
 					}
 				})
 				
-				this.totalExpense = expense.toFixed(2)
-				this.totalIncome = income.toFixed(2)
+				this.totalExpense = this.moneyCalculator.format(expense)
+				this.totalIncome = this.moneyCalculator.format(income)
 			},
 			
 			calculateCategoryStats(records) {
@@ -317,7 +351,7 @@
 					const categoryId = record.categoryId
 					if (categoryMap.has(categoryId)) {
 						const existing = categoryMap.get(categoryId)
-						existing.amount += parseFloat(record.amount)
+						existing.amount = this.moneyCalculator.add(existing.amount, parseFloat(record.amount))
 						existing.count += 1
 					} else {
 						categoryMap.set(categoryId, {
@@ -334,8 +368,12 @@
 				
 				// 计算百分比并排序
 				stats.forEach(stat => {
-					stat.amount = stat.amount.toFixed(2)
-					stat.percentage = total > 0 ? ((parseFloat(stat.amount) / parseFloat(total)) * 100).toFixed(1) : '0.0'
+					stat.amount = this.moneyCalculator.format(stat.amount)
+					stat.percentage = total > 0 ? 
+						this.moneyCalculator.format(this.moneyCalculator.multiply(
+							this.moneyCalculator.divide(parseFloat(stat.amount), parseFloat(total)), 
+							100
+						)) : '0.00'
 				})
 				
 				// 按金额降序排列
@@ -390,11 +428,14 @@
 			
 			// 获取其他分类的百分比
 			getOtherPercentage(stats) {
-				if (stats.length <= 4) return '0.0'
+				if (stats.length <= 4) return '0.00'
 				
 				const otherStats = stats.slice(4)
-				const otherTotal = otherStats.reduce((sum, stat) => sum + parseFloat(stat.percentage), 0)
-				return otherTotal.toFixed(1)
+				let otherTotal = 0
+				otherStats.forEach(stat => {
+					otherTotal = this.moneyCalculator.add(otherTotal, parseFloat(stat.percentage))
+				})
+				return this.moneyCalculator.format(otherTotal)
 			},
 			
 			// 获取其他分类的金额
@@ -402,8 +443,11 @@
 				if (stats.length <= 5) return '0.00'
 				
 				const otherStats = stats.slice(5)
-				const otherTotal = otherStats.reduce((sum, stat) => sum + parseFloat(stat.amount), 0)
-				return otherTotal.toFixed(2)
+				let otherTotal = 0
+				otherStats.forEach(stat => {
+					otherTotal = this.moneyCalculator.add(otherTotal, parseFloat(stat.amount))
+				})
+				return this.moneyCalculator.format(otherTotal)
 			},
 			
 			// 计算趋势数据
@@ -440,19 +484,19 @@
 					const amount = parseFloat(record.amount)
 					
 					if (record.type === 'expense' && expenseData[recordDate]) {
-						expenseData[recordDate].amount += amount
+						expenseData[recordDate].amount = this.moneyCalculator.add(expenseData[recordDate].amount, amount)
 					} else if (record.type === 'income' && incomeData[recordDate]) {
-						incomeData[recordDate].amount += amount
+						incomeData[recordDate].amount = this.moneyCalculator.add(incomeData[recordDate].amount, amount)
 					}
 				})
 				
 				this.expenseTrendData = Object.values(expenseData).map(item => ({
 					...item,
-					amount: item.amount.toFixed(2)
+					amount: this.moneyCalculator.format(item.amount)
 				}))
 				this.incomeTrendData = Object.values(incomeData).map(item => ({
 					...item,
-					amount: item.amount.toFixed(2)
+					amount: this.moneyCalculator.format(item.amount)
 				}))
 			},
 			
@@ -476,19 +520,19 @@
 					const amount = parseFloat(record.amount)
 					
 					if (record.type === 'expense' && expenseData[monthKey]) {
-						expenseData[monthKey].amount += amount
+						expenseData[monthKey].amount = this.moneyCalculator.add(expenseData[monthKey].amount, amount)
 					} else if (record.type === 'income' && incomeData[monthKey]) {
-						incomeData[monthKey].amount += amount
+						incomeData[monthKey].amount = this.moneyCalculator.add(incomeData[monthKey].amount, amount)
 					}
 				})
 				
 				this.expenseTrendData = Object.values(expenseData).map(item => ({
 					...item,
-					amount: item.amount.toFixed(2)
+					amount: this.moneyCalculator.format(item.amount)
 				}))
 				this.incomeTrendData = Object.values(incomeData).map(item => ({
 					...item,
-					amount: item.amount.toFixed(2)
+					amount: this.moneyCalculator.format(item.amount)
 				}))
 			},
 			
@@ -510,19 +554,19 @@
 					const amount = parseFloat(record.amount)
 					
 					if (record.type === 'expense' && expenseData[recordYear]) {
-						expenseData[recordYear].amount += amount
+						expenseData[recordYear].amount = this.moneyCalculator.add(expenseData[recordYear].amount, amount)
 					} else if (record.type === 'income' && incomeData[recordYear]) {
-						incomeData[recordYear].amount += amount
+						incomeData[recordYear].amount = this.moneyCalculator.add(incomeData[recordYear].amount, amount)
 					}
 				})
 				
 				this.expenseTrendData = Object.values(expenseData).map(item => ({
 					...item,
-					amount: item.amount.toFixed(2)
+					amount: this.moneyCalculator.format(item.amount)
 				}))
 				this.incomeTrendData = Object.values(incomeData).map(item => ({
 					...item,
-					amount: item.amount.toFixed(2)
+					amount: this.moneyCalculator.format(item.amount)
 				}))
 			},
 			
