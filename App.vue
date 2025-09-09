@@ -69,6 +69,23 @@
 	page {
 		background-color: #F5F5F5;
 		font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', SimSun, sans-serif;
+		overflow-x: hidden;
+		width: 100vw;
+		max-width: 100vw;
+	}
+	
+	/* 防止整个应用水平滚动 */
+	body, 
+	uni-page-body {
+		overflow-x: hidden !important;
+		width: 100vw;
+		max-width: 100vw;
+	}
+	
+	/* 强制所有元素不超出屏幕宽度 */
+	* {
+		max-width: 100vw;
+		box-sizing: border-box;
 	}
 	
 	/* TabBar样式优化 */

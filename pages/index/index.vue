@@ -699,10 +699,18 @@
 </script>
 
 <style>
+	/* 全局防止水平溢出 */
+	* {
+		max-width: 100%;
+		box-sizing: border-box;
+	}
+	
 	.container {
-		padding: 20rpx 60rpx 20rpx 20rpx;
+		padding: 20rpx;
 		background-color: #F5F5F5;
 		height: 100vh;
+		max-width: 100vw;
+		overflow-x: hidden;
 	}
 	
 	.summary-card {
@@ -710,10 +718,11 @@
 		border-radius: 20rpx;
 		padding: 40rpx 30rpx;
 		margin-bottom: 30rpx;
-		margin-right: 40rpx;
 		position: relative;
 		overflow: hidden;
 		box-shadow: 0 10rpx 30rpx rgba(102, 126, 234, 0.3);
+		width: 100%;
+		max-width: 100%;
 	}
 	
 	.card-decoration {
@@ -744,6 +753,8 @@
 		margin-bottom: 20rpx;
 		position: relative;
 		z-index: 1;
+		width: 100%;
+		box-sizing: border-box;
 	}
 	
 	.summary-row:last-child {
@@ -755,6 +766,7 @@
 		flex-direction: column;
 		align-items: center;
 		flex: 1;
+		min-width: 0;
 		padding: 15rpx;
 		border-radius: 15rpx;
 		background: rgba(255, 255, 255, 0.08);
@@ -763,6 +775,7 @@
 		backdrop-filter: blur(10rpx);
 		position: relative;
 		overflow: hidden;
+		box-sizing: border-box;
 	}
 	
 	.summary-item:first-child {
@@ -801,6 +814,9 @@
 		margin-bottom: 8rpx;
 		font-weight: 500;
 		text-shadow: 0 1rpx 2rpx rgba(0,0,0,0.1);
+		text-align: center;
+		word-wrap: break-word;
+		overflow-wrap: break-word;
 	}
 	
 	.summary-value {
@@ -809,6 +825,10 @@
 		font-weight: bold;
 		text-shadow: 0 2rpx 4rpx rgba(0,0,0,0.2);
 		letter-spacing: 0.5rpx;
+		text-align: center;
+		word-wrap: break-word;
+		overflow-wrap: break-word;
+		max-width: 100%;
 	}
 	
 	.summary-value.expense {
@@ -823,7 +843,8 @@
 	
 	.quick-add {
 		margin-bottom: 30rpx;
-		margin-right: 40rpx;
+		width: 100%;
+		box-sizing: border-box;
 	}
 	
 	.add-btn {
@@ -833,6 +854,8 @@
 		border: none;
 		box-shadow: 0 8rpx 25rpx rgba(255, 107, 107, 0.3);
 		transition: all 0.3s ease;
+		width: 100%;
+		box-sizing: border-box;
 	}
 	
 	.add-btn:active {
@@ -843,9 +866,11 @@
 	.record-list {
 		background-color: white;
 		border-radius: 20rpx;
-		margin-right: 40rpx;
 		overflow: hidden;
 		box-shadow: 0 4rpx 20rpx rgba(0,0,0,0.05);
+		width: 100%;
+		max-width: 100%;
+		box-sizing: border-box;
 	}
 	
 	.record-header {
@@ -864,12 +889,18 @@
 		padding: 20rpx 30rpx;
 		background-color: #F8F9FA;
 		border-bottom: 1px solid #F0F0F0;
+		box-sizing: border-box;
+		width: 100%;
 	}
 	
 	.filter-row {
 		display: flex;
 		align-items: center;
 		margin-bottom: 20rpx;
+		width: 100%;
+		box-sizing: border-box;
+		flex-wrap: wrap;
+		gap: 10rpx;
 	}
 	
 	.filter-row:last-child {
@@ -880,7 +911,9 @@
 		display: flex;
 		align-items: center;
 		flex: 1;
-		margin-right: 30rpx;
+		min-width: 140rpx;
+		margin-right: 20rpx;
+		box-sizing: border-box;
 	}
 	
 	.filter-item:last-child {
@@ -891,6 +924,7 @@
 		flex: none;
 		width: 100%;
 		margin-right: 0;
+		min-width: auto;
 	}
 	
 	.filter-label {
@@ -902,6 +936,7 @@
 	
 	.picker-text {
 		flex: 1;
+		min-width: 0;
 		padding: 12rpx 20rpx;
 		background-color: white;
 		border: 1px solid #E5E5E5;
@@ -909,9 +944,13 @@
 		font-size: 26rpx;
 		color: #333;
 		text-align: center;
-		min-width: 120rpx;
+		min-width: 100rpx;
 		transition: all 0.2s ease;
 		box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);
+		box-sizing: border-box;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	
 	.picker-text:active {
@@ -933,6 +972,8 @@
 	/* 日期分组样式 */
 	.record-group {
 		margin-bottom: 20rpx;
+		width: 100%;
+		box-sizing: border-box;
 	}
 	
 	.date-group-header {
@@ -945,11 +986,15 @@
 		position: sticky;
 		top: 0;
 		z-index: 10;
+		width: 100%;
+		box-sizing: border-box;
 	}
 	
 	.date-info {
 		display: flex;
 		align-items: center;
+		flex: 1;
+		min-width: 0;
 	}
 	
 	.date-text {
@@ -972,6 +1017,8 @@
 		display: flex;
 		align-items: center;
 		gap: 15rpx;
+		flex-wrap: wrap;
+		justify-content: flex-end;
 	}
 	
 	.date-expense {
@@ -1040,6 +1087,8 @@
 	
 	.record-left {
 		flex: 1;
+		min-width: 0;
+		overflow: hidden;
 	}
 	
 	.record-category {
@@ -1062,6 +1111,10 @@
 		color: #333;
 		font-weight: 600;
 		letter-spacing: 0.5rpx;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: 100%;
 	}
 	
 	.record-note {
@@ -1069,10 +1122,16 @@
 		color: #999;
 		margin-top: 4rpx;
 		opacity: 0.8;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: 100%;
 	}
 	
 	.record-right {
 		text-align: right;
+		flex-shrink: 0;
+		margin-left: 15rpx;
 	}
 	
 	.record-amount {
@@ -1103,6 +1162,8 @@
 	.record-wrapper {
 		position: relative;
 		overflow: hidden;
+		width: 100%;
+		box-sizing: border-box;
 	}
 	
 	.record-item {
@@ -1115,6 +1176,9 @@
 		transition: all 0.3s ease;
 		position: relative;
 		z-index: 1;
+		width: 100%;
+		box-sizing: border-box;
+		min-width: 0;
 	}
 	
 	.record-group .record-item:first-child {

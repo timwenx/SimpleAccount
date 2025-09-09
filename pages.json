@@ -49,6 +49,12 @@
 			}
 		},
 		{
+			"path": "pages/voice-config/voice-config",
+			"style": {
+				"navigationBarTitleText": "语音识别配置"
+			}
+		},
+		{
 			"path": "pages/chat/chat",
 			"style": {
 				"navigationBarTitleText": "智能记账"

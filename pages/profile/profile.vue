@@ -26,6 +26,13 @@
 				</view>
 				<text class="management-arrow">></text>
 			</view>
+			<view class="management-item voice-config-item" @click="goToVoiceConfig">
+				<view class="management-left">
+					<text class="management-icon">🎤</text>
+					<text class="management-text">语音识别配置</text>
+				</view>
+				<text class="management-arrow">></text>
+			</view>
 		</view>
 		
 		<!-- 数据管理 -->
@@ -124,6 +131,13 @@
 			goToAIConfig() {
 				uni.navigateTo({
 					url: '/pages/ai-config/ai-config'
+				})
+			},
+			
+			// 跳转到语音识别配置页面
+			goToVoiceConfig() {
+				uni.navigateTo({
+					url: '/pages/voice-config/voice-config'
 				})
 			},
 			
