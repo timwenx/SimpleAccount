@@ -94,7 +94,39 @@
 				expenseCategories: [],
 				incomeCategories: [],
 				isEditMode: false, // 是否为编辑模式
-				editingRecordId: null // 正在编辑的记录ID
+				editingRecordId: null, // 正在编辑的记录ID
+				// 金额计算工具函数，解决浮点数精度问题
+				moneyCalculator: {
+					// 金额加法
+					add(a, b) {
+						const factor = 100
+						return Math.round((parseFloat(a) * factor + parseFloat(b) * factor)) / factor
+					},
+					
+					// 金额减法
+					subtract(a, b) {
+						const factor = 100
+						return Math.round((parseFloat(a) * factor - parseFloat(b) * factor)) / factor
+					},
+					
+					// 金额乘法
+					multiply(a, b) {
+						const factor = 100
+						return Math.round(parseFloat(a) * parseFloat(b) * factor) / factor
+					},
+					
+					// 金额除法
+					divide(a, b) {
+						if (parseFloat(b) === 0) return 0
+						const factor = 100
+						return Math.round((parseFloat(a) / parseFloat(b)) * factor) / factor
+					},
+					
+					// 格式化金额，保留两位小数
+					format(amount) {
+						return parseFloat(amount).toFixed(2)
+					}
+				}
 			}
 		},
 		
@@ -366,7 +398,7 @@
 				const record = {
 					id: Date.now().toString(),
 					type: this.currentType,
-					amount: parseFloat(this.amount).toFixed(2),
+					amount: this.moneyCalculator.format(parseFloat(this.amount)),
 					categoryId: this.selectedCategory.id,
 					categoryName: this.selectedCategory.name,
 					categoryIcon: this.selectedCategory.icon,
@@ -408,7 +440,7 @@
 				const updatedRecord = {
 					...records[recordIndex], // 保持原有的id和创建时间等信息
 					type: this.currentType,
-					amount: parseFloat(this.amount).toFixed(2),
+					amount: this.moneyCalculator.format(parseFloat(this.amount)),
 					categoryId: this.selectedCategory.id,
 					categoryName: this.selectedCategory.name,
 					categoryIcon: this.selectedCategory.icon,

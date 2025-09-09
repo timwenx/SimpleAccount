@@ -228,7 +228,39 @@
 				lastYearCount: 0,
 				lastYearAmount: '0.00',
 				monthlyTrend: [],
-				yearlyTrend: []
+				yearlyTrend: [],
+				// 金额计算工具函数，解决浮点数精度问题
+				moneyCalculator: {
+					// 金额加法
+					add(a, b) {
+						const factor = 100
+						return Math.round((parseFloat(a) * factor + parseFloat(b) * factor)) / factor
+					},
+					
+					// 金额减法
+					subtract(a, b) {
+						const factor = 100
+						return Math.round((parseFloat(a) * factor - parseFloat(b) * factor)) / factor
+					},
+					
+					// 金额乘法
+					multiply(a, b) {
+						const factor = 100
+						return Math.round(parseFloat(a) * parseFloat(b) * factor) / factor
+					},
+					
+					// 金额除法
+					divide(a, b) {
+						if (parseFloat(b) === 0) return 0
+						const factor = 100
+						return Math.round((parseFloat(a) / parseFloat(b)) * factor) / factor
+					},
+					
+					// 格式化金额，保留两位小数
+					format(amount) {
+						return parseFloat(amount).toFixed(2)
+					}
+				}
 			}
 		},
 		
@@ -283,15 +315,15 @@
 				
 				this.records.forEach(record => {
 					const amount = parseFloat(record.amount)
-					totalAmount += amount
+					totalAmount = this.moneyCalculator.add(totalAmount, amount)
 					if (amount > maxAmount) maxAmount = amount
 					if (amount < minAmount) minAmount = amount
 				})
 				
-				this.totalAmount = totalAmount.toFixed(2)
-				this.avgAmount = (totalAmount / this.records.length).toFixed(2)
-				this.maxAmount = maxAmount.toFixed(2)
-				this.minAmount = minAmount === Infinity ? '0.00' : minAmount.toFixed(2)
+				this.totalAmount = this.moneyCalculator.format(totalAmount)
+				this.avgAmount = this.moneyCalculator.format(this.moneyCalculator.divide(totalAmount, this.records.length))
+				this.maxAmount = this.moneyCalculator.format(maxAmount)
+				this.minAmount = minAmount === Infinity ? '0.00' : this.moneyCalculator.format(minAmount)
 				
 				// 时间统计
 				const sortedByTime = [...this.records].sort((a, b) => new Date(a.time) - new Date(b.time))
@@ -318,8 +350,11 @@
 				
 				this.monthlyCount = monthRecords.length
 				if (monthRecords.length > 0) {
-					const monthTotal = monthRecords.reduce((sum, record) => sum + parseFloat(record.amount), 0)
-					this.monthlyAmount = monthTotal.toFixed(2)
+					let monthTotal = 0
+					monthRecords.forEach(record => {
+						monthTotal = this.moneyCalculator.add(monthTotal, parseFloat(record.amount))
+					})
+					this.monthlyAmount = this.moneyCalculator.format(monthTotal)
 				} else {
 					this.monthlyAmount = '0.00'
 				}
@@ -335,8 +370,11 @@
 				
 				this.lastMonthCount = lastMonthRecords.length
 				if (lastMonthRecords.length > 0) {
-					const lastMonthTotal = lastMonthRecords.reduce((sum, record) => sum + parseFloat(record.amount), 0)
-					this.lastMonthAmount = lastMonthTotal.toFixed(2)
+					let lastMonthTotal = 0
+					lastMonthRecords.forEach(record => {
+						lastMonthTotal = this.moneyCalculator.add(lastMonthTotal, parseFloat(record.amount))
+					})
+					this.lastMonthAmount = this.moneyCalculator.format(lastMonthTotal)
 				} else {
 					this.lastMonthAmount = '0.00'
 				}
@@ -354,8 +392,11 @@
 				
 				this.yearlyCount = yearRecords.length
 				if (yearRecords.length > 0) {
-					const yearTotal = yearRecords.reduce((sum, record) => sum + parseFloat(record.amount), 0)
-					this.yearlyAmount = yearTotal.toFixed(2)
+					let yearTotal = 0
+					yearRecords.forEach(record => {
+						yearTotal = this.moneyCalculator.add(yearTotal, parseFloat(record.amount))
+					})
+					this.yearlyAmount = this.moneyCalculator.format(yearTotal)
 				} else {
 					this.yearlyAmount = '0.00'
 				}
@@ -369,8 +410,11 @@
 				
 				this.lastYearCount = lastYearRecords.length
 				if (lastYearRecords.length > 0) {
-					const lastYearTotal = lastYearRecords.reduce((sum, record) => sum + parseFloat(record.amount), 0)
-					this.lastYearAmount = lastYearTotal.toFixed(2)
+					let lastYearTotal = 0
+					lastYearRecords.forEach(record => {
+						lastYearTotal = this.moneyCalculator.add(lastYearTotal, parseFloat(record.amount))
+					})
+					this.lastYearAmount = this.moneyCalculator.format(lastYearTotal)
 				} else {
 					this.lastYearAmount = '0.00'
 				}

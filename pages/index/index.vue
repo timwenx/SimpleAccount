@@ -197,7 +197,39 @@
 				selectedCategoryIndex: 0,
 				// 所有分类数据（从本地存储加载）
 				expenseCategories: [],
-				incomeCategories: []
+				incomeCategories: [],
+				// 金额计算工具函数，解决浮点数精度问题
+				moneyCalculator: {
+					// 金额加法
+					add(a, b) {
+						const factor = 100
+						return Math.round((parseFloat(a) * factor + parseFloat(b) * factor)) / factor
+					},
+					
+					// 金额减法
+					subtract(a, b) {
+						const factor = 100
+						return Math.round((parseFloat(a) * factor - parseFloat(b) * factor)) / factor
+					},
+					
+					// 金额乘法
+					multiply(a, b) {
+						const factor = 100
+						return Math.round(parseFloat(a) * parseFloat(b) * factor) / factor
+					},
+					
+					// 金额除法
+					divide(a, b) {
+						if (parseFloat(b) === 0) return 0
+						const factor = 100
+						return Math.round((parseFloat(a) / parseFloat(b)) * factor) / factor
+					},
+					
+					// 格式化金额，保留两位小数
+					format(amount) {
+						return parseFloat(amount).toFixed(2)
+					}
+				}
 			}
 		},
 		onLoad() {
@@ -396,17 +428,17 @@
 					group.records.push(record)
 					
 					if (record.type === 'expense') {
-						group.totalExpense += parseFloat(record.amount)
+						group.totalExpense = this.moneyCalculator.add(group.totalExpense, parseFloat(record.amount))
 					} else {
-						group.totalIncome += parseFloat(record.amount)
+						group.totalIncome = this.moneyCalculator.add(group.totalIncome, parseFloat(record.amount))
 					}
 				})
 				
 				// 转换为数组并按日期倒序排列
 				this.groupedRecords = Array.from(groupedMap.values()).map(group => ({
 					...group,
-					totalExpense: group.totalExpense.toFixed(2),
-					totalIncome: group.totalIncome.toFixed(2)
+					totalExpense: this.moneyCalculator.format(group.totalExpense),
+					totalIncome: this.moneyCalculator.format(group.totalIncome)
 				})).sort((a, b) => new Date(b.date) - new Date(a.date))
 			},
 			
@@ -499,28 +531,29 @@
 					// 本月统计
 					if (recordDate.getFullYear() === currentYear && recordDate.getMonth() === currentMonth) {
 						if (record.type === 'expense') {
-							monthExpense += parseFloat(record.amount)
+							monthExpense = this.moneyCalculator.add(monthExpense, parseFloat(record.amount))
 							monthExpenseDays.add(recordDate.getDate())
 						} else {
-							monthIncome += parseFloat(record.amount)
+							monthIncome = this.moneyCalculator.add(monthIncome, parseFloat(record.amount))
 						}
 					}
 					
 					// 今日统计
 					if (recordDay.getTime() === today.getTime() && record.type === 'expense') {
-						todayExpense += parseFloat(record.amount)
+						todayExpense = this.moneyCalculator.add(todayExpense, parseFloat(record.amount))
 					}
 				})
 				
-				this.monthExpense = monthExpense.toFixed(2)
-				this.monthIncome = monthIncome.toFixed(2)
-				this.monthBalance = (monthIncome - monthExpense).toFixed(2)
-				this.todayExpense = todayExpense.toFixed(2)
+				this.monthExpense = this.moneyCalculator.format(monthExpense)
+				this.monthIncome = this.moneyCalculator.format(monthIncome)
+				this.monthBalance = this.moneyCalculator.format(this.moneyCalculator.subtract(monthIncome, monthExpense))
+				this.todayExpense = this.moneyCalculator.format(todayExpense)
 				this.totalRecords = records.length
 				
 				// 计算平均日支出（基于有支出记录的天数）
 				const expenseDaysCount = monthExpenseDays.size
-				this.avgDailyExpense = expenseDaysCount > 0 ? (monthExpense / expenseDaysCount).toFixed(2) : '0.00'
+				this.avgDailyExpense = expenseDaysCount > 0 ? 
+					this.moneyCalculator.format(this.moneyCalculator.divide(monthExpense, expenseDaysCount)) : '0.00'
 			},
 			
 			goToAdd() {
