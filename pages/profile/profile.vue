@@ -221,7 +221,7 @@
 				// 使用 prompt 来获取用户输入的CSV数据
 				uni.showModal({
 					title: '粘贴CSV数据',
-					content: '请将CSV数据粘贴到下方：\n格式：时间,类型,分类,金额,备注\n\n示例：\n"2024-01-01 12:00","支出","餐饮","25.50","午餐"',
+					content: '请将CSV数据粘贴到下方：\n新格式：时间,类型,分类名,分类图标,金额,备注\n旧格式：时间,类型,分类名,金额,备注\n\n示例：\n"2024-01-01 12:00","支出","餐饮","🍽️","25.50","午餐"',
 					editable: true,
 					placeholderText: '请粘贴CSV数据...',
 					confirmText: '导入',
@@ -299,7 +299,7 @@
 				if (!clipboardData || !clipboardData.trim()) {
 					uni.showModal({
 						title: '剪切板为空',
-						content: '剪切板中没有找到数据，请先复制CSV格式的数据到剪切板。\n\n格式：时间,类型,分类,金额,备注',
+						content: '剪切板中没有找到数据，请先复制CSV格式的数据到剪切板。\n\n新格式：时间,类型,分类名,分类图标,金额,备注\n旧格式：时间,类型,分类名,金额,备注',
 						showCancel: false,
 						confirmText: '知道了'
 					})
@@ -311,7 +311,7 @@
 				if (!trimmedData.includes(',')) {
 					uni.showModal({
 						title: '数据格式错误',
-						content: '剪切板中的数据不是CSV格式，请确保数据包含逗号分隔的字段。\n\n正确格式：\n时间,类型,分类,金额,备注',
+						content: '剪切板中的数据不是CSV格式，请确保数据包含逗号分隔的字段。\n\n新格式：时间,类型,分类名,分类图标,金额,备注\n旧格式：时间,类型,分类名,金额,备注',
 						showCancel: false,
 						confirmText: '知道了'
 					})
@@ -340,7 +340,7 @@
 				console.log('=== 显示手动粘贴对话框 ===')
 				uni.showModal({
 					title: '手动粘贴数据',
-					content: '无法自动读取剪切板，请手动粘贴CSV数据。点击确定后将显示输入框。\n\n格式：时间,类型,分类,金额,备注',
+					content: '无法自动读取剪切板，请手动粘贴CSV数据。点击确定后将显示输入框。\n\n新格式：时间,类型,分类名,分类图标,金额,备注\n旧格式：时间,类型,分类名,金额,备注',
 					showCancel: true,
 					confirmText: '输入数据',
 					cancelText: '取消',
@@ -470,48 +470,52 @@
 				console.log('输入数据长度:', csvText ? csvText.length : 'undefined')
 				
 				try {
-					// 检查输入数据
-					if (!csvText || typeof csvText !== 'string') {
-						console.error('数据检查失败: 数据为空或不是字符串类型')
-						uni.showToast({
-							title: '数据为空或格式错误',
-							icon: 'none'
-						})
-						return
+				// 检查输入数据
+				if (!csvText || typeof csvText !== 'string') {
+					console.error('数据检查失败: 数据为空或不是字符串类型')
+					uni.showToast({
+						title: '数据为空或格式错误',
+						icon: 'none'
+					})
+					return
+				}
+				
+				console.log('开始分割数据行...')
+				const lines = csvText.split('\n').filter(line => line.trim())
+				console.log('总行数:', lines.length, '有效行数:', lines.filter(line => line.trim()).length)
+				
+				if (lines.length === 0) {
+					console.error('数据检查失败: 文件内容为空')
+					uni.showToast({
+						title: '文件内容为空',
+						icon: 'none'
+					})
+					return
+				}
+				
+				const records = []
+				const existingRecords = uni.getStorageSync('records') || []
+				const newCategories = [] // 记录新创建的分类
+				console.log('现有记录数量:', existingRecords.length)
+				
+				// 跳过标题行（如果有的话）
+				let startIndex = 0
+				let hasIconColumn = false // 检测是否包含分类图标列
+				if (lines.length > 0 && lines[0]) {
+					const firstLine = lines[0].toLowerCase()
+					console.log('第一行内容:', lines[0])
+					console.log('第一行小写:', firstLine)
+					if (firstLine.includes('时间') && firstLine.includes('类型')) {
+						startIndex = 1
+						hasIconColumn = firstLine.includes('图标') // 检测是否有图标列
+						console.log('检测到标题行，从第二行开始解析，包含图标列:', hasIconColumn)
+					} else {
+						console.log('未检测到标题行，从第一行开始解析')
+						// 尝试检测第一行数据是否包含图标
+						const firstLineFields = this.parseCSVLine(lines[0])
+						hasIconColumn = firstLineFields.length >= 6 // 时间,类型,分类名,分类图标,金额,备注
 					}
-					
-					console.log('开始分割数据行...')
-					const lines = csvText.split('\n').filter(line => line.trim())
-					console.log('总行数:', lines.length, '有效行数:', lines.filter(line => line.trim()).length)
-					
-					if (lines.length === 0) {
-						console.error('数据检查失败: 文件内容为空')
-						uni.showToast({
-							title: '文件内容为空',
-							icon: 'none'
-						})
-						return
-					}
-					
-					const records = []
-					const existingRecords = uni.getStorageSync('records') || []
-					console.log('现有记录数量:', existingRecords.length)
-					
-					// 跳过标题行（如果有的话）
-					let startIndex = 0
-					if (lines.length > 0 && lines[0]) {
-						const firstLine = lines[0].toLowerCase()
-						console.log('第一行内容:', lines[0])
-						console.log('第一行小写:', firstLine)
-						if (firstLine.includes('时间') && firstLine.includes('类型')) {
-							startIndex = 1
-							console.log('检测到标题行，从第二行开始解析')
-						} else {
-							console.log('未检测到标题行，从第一行开始解析')
-						}
-					}
-					
-					console.log('开始逐行解析数据，起始行:', startIndex)
+				}					console.log('开始逐行解析数据，起始行:', startIndex)
 					for (let i = startIndex; i < lines.length; i++) {
 						const line = lines[i].trim()
 						console.log(`处理第${i+1}行:`, line.substring(0, 100) + (line.length > 100 ? '...' : ''))
@@ -521,27 +525,42 @@
 							continue
 						}
 						
-						// 解析CSV行（处理带引号的字段）
-						console.log(`开始解析第${i+1}行的CSV字段...`)
-						const fields = this.parseCSVLine(line)
-						console.log(`第${i+1}行解析得到${fields.length}个字段:`, fields)
+					// 解析CSV行（处理带引号的字段）
+					console.log(`开始解析第${i+1}行的CSV字段...`)
+					const fields = this.parseCSVLine(line)
+					console.log(`第${i+1}行解析得到${fields.length}个字段:`, fields)
+					
+					// 根据是否有图标列决定字段解析方式
+					const minFields = hasIconColumn ? 5 : 4 // 新格式需要至少5个字段，旧格式需要4个
+					if (fields.length >= minFields) {
+						let timeStr, typeStr, categoryStr, categoryIcon, amountStr, noteStr
 						
-						if (fields.length >= 4) {
-							const timeStr = fields[0]
-							const typeStr = fields[1]
-							const categoryStr = fields[2]
-							const amountStr = fields[3]
-							const noteStr = fields[4] || ''
-							
-							console.log(`第${i+1}行字段详情:`, {
-								time: timeStr,
-								type: typeStr,
-								category: categoryStr,
-								amount: amountStr,
-								note: noteStr
-							})
-							
-							// 验证和转换数据
+						if (hasIconColumn) {
+							// 新格式：时间,类型,分类名,分类图标,金额,备注
+							timeStr = fields[0]
+							typeStr = fields[1]
+							categoryStr = fields[2]
+							categoryIcon = fields[3]
+							amountStr = fields[4]
+							noteStr = fields[5] || ''
+						} else {
+							// 旧格式：时间,类型,分类名,金额,备注
+							timeStr = fields[0]
+							typeStr = fields[1]
+							categoryStr = fields[2]
+							categoryIcon = '' // 旧格式没有图标，后续会使用默认值
+							amountStr = fields[3]
+							noteStr = fields[4] || ''
+						}
+						
+						console.log(`第${i+1}行字段详情:`, {
+							time: timeStr,
+							type: typeStr,
+							category: categoryStr,
+							icon: categoryIcon,
+							amount: amountStr,
+							note: noteStr
+						})							// 验证和转换数据
 							console.log(`验证第${i+1}行数据类型...`)
 							const type = typeStr === '支出' ? 'expense' : typeStr === '收入' ? 'income' : null
 							if (!type) {
@@ -558,16 +577,28 @@
 							}
 							console.log(`第${i+1}行金额验证通过:`, amount)
 							
-							// 查找对应的分类
-							console.log(`查找第${i+1}行分类:`, categoryStr, type)
-							const category = this.findCategoryByName(categoryStr, type)
-							if (!category) {
-								console.log(`第${i+1}行找不到对应分类:`, categoryStr, '跳过此行')
-								continue
+						// 查找或创建对应的分类
+						console.log(`查找第${i+1}行分类:`, categoryStr, type, '图标:', categoryIcon)
+						let category = this.findOrCreateCategory(categoryStr, type, categoryIcon)
+						if (!category) {
+							console.log(`第${i+1}行无法创建分类:`, categoryStr, '跳过此行')
+							continue
+						}
+						
+						// 检查是否是新创建的分类
+						if (category.isNewCategory) {
+							const existingNew = newCategories.find(cat => cat.name === category.name && cat.type === type)
+							if (!existingNew) {
+								newCategories.push({
+									name: category.name,
+									icon: category.icon,
+									type: type === 'expense' ? '支出' : '收入'
+								})
 							}
-							console.log(`第${i+1}行分类匹配成功:`, category)
-							
-							// 解析时间
+							delete category.isNewCategory // 移除临时标记
+						}
+						
+						console.log(`第${i+1}行分类处理成功:`, category)							// 解析时间
 							console.log(`解析第${i+1}行时间:`, timeStr)
 							let time
 							try {
@@ -592,7 +623,7 @@
 							console.log(`第${i+1}行记录创建成功:`, record)
 							records.push(record)
 						} else {
-							console.log(`第${i+1}行字段数量不足(${fields.length}/4)，跳过此行`)
+							console.log(`第${i+1}行字段数量不足(${fields.length}/${minFields})，跳过此行`)
 						}
 					}
 					
@@ -607,9 +638,18 @@
 						uni.setStorageSync('records', allRecords)
 						console.log('数据保存成功')
 						
+						// 构建成功消息
+						let successMessage = `成功导入 ${records.length} 条记录！`
+						if (newCategories.length > 0) {
+							successMessage += `\n\n新创建分类 ${newCategories.length} 个：\n`
+							newCategories.forEach(cat => {
+								successMessage += `${cat.icon} ${cat.name} (${cat.type})\n`
+							})
+						}
+						
 						uni.showModal({
 							title: '导入成功',
-							content: `成功导入 ${records.length} 条记录！`,
+							content: successMessage,
 							showCancel: false
 						})
 						console.log('=== CSV导入流程完成 ===')
@@ -629,7 +669,7 @@
 					
 					uni.showModal({
 						title: '数据格式错误',
-						content: '请检查CSV数据格式是否正确\n\n正确格式：\n时间,类型,分类,金额,备注\n\n示例：\n"2024-01-01 12:00","支出","餐饮","25.50","午餐"',
+						content: '请检查CSV数据格式是否正确\n\n新格式：时间,类型,分类名,分类图标,金额,备注\n旧格式：时间,类型,分类名,金额,备注\n\n示例：\n"2024-01-01 12:00","支出","餐饮","🍽️","25.50","午餐"',
 						showCancel: false,
 						confirmText: '知道了'
 					})
@@ -1160,26 +1200,59 @@
 				return finalResult
 			},
 			
-			findCategoryByName(categoryName, type) {
-				console.log('查找分类:', categoryName, '类型:', type)
+			findOrCreateCategory(categoryName, type, categoryIcon = '') {
+				console.log('查找或创建分类:', categoryName, '类型:', type, '图标:', categoryIcon)
+				
 				// 从存储中加载分类数据
-				const expenseCategories = uni.getStorageSync('expenseCategories') || this.defaultExpenseCategories
-				const incomeCategories = uni.getStorageSync('incomeCategories') || this.defaultIncomeCategories
+				let expenseCategories = uni.getStorageSync('expenseCategories') || [...this.defaultExpenseCategories]
+				let incomeCategories = uni.getStorageSync('incomeCategories') || [...this.defaultIncomeCategories]
 				const categories = type === 'expense' ? expenseCategories : incomeCategories
 				
 				console.log('可用分类列表:', categories.map(cat => cat.name))
 				
-				// 精确匹配
+				// 精确匹配现有分类
 				let category = categories.find(cat => cat.name === categoryName)
 				if (category) {
-					console.log('精确匹配成功:', category)
+					console.log('找到现有分类:', category)
 					return category
 				}
 				
-				// 找不到则使用"其他"
-				category = categories.find(cat => cat.name === '其他')
-				console.log('使用默认分类"其他":', category)
-				return category
+				// 如果没找到，创建新分类
+				console.log('未找到分类，创建新分类:', categoryName)
+				
+				// 确定分类图标
+				let finalIcon = categoryIcon
+				if (!finalIcon || finalIcon.trim() === '') {
+					// 使用默认图标
+					finalIcon = type === 'expense' ? '📦' : '💎'
+				}
+				
+				// 生成新的分类ID
+				const allCategories = [...expenseCategories, ...incomeCategories]
+				const maxId = allCategories.length > 0 ? Math.max(...allCategories.map(cat => cat.id || 0)) : 0
+				const newId = maxId + 1
+				
+				// 创建新分类对象
+				const newCategory = {
+					id: newId,
+					name: categoryName,
+					icon: finalIcon,
+					isNewCategory: true // 临时标记，用于识别新创建的分类
+				}
+				
+				console.log('创建的新分类:', newCategory)
+				
+				// 添加到对应的分类列表
+				if (type === 'expense') {
+					expenseCategories.push(newCategory)
+					uni.setStorageSync('expenseCategories', expenseCategories)
+				} else {
+					incomeCategories.push(newCategory)
+					uni.setStorageSync('incomeCategories', incomeCategories)
+				}
+				
+				console.log('新分类已保存到存储')
+				return newCategory
 			},
 			
 			createSampleData() {
@@ -1278,15 +1351,20 @@
 					return
 				}
 				
-				// 格式化数据为CSV格式（所有平台都需要）
-				let csvContent = '时间,类型,分类,金额,备注\n'
+				// 获取分类数据
+				const expenseCategories = uni.getStorageSync('expenseCategories') || this.defaultExpenseCategories
+				const incomeCategories = uni.getStorageSync('incomeCategories') || this.defaultIncomeCategories
+				
+				// 格式化数据为CSV格式，包含分类图标信息
+				let csvContent = '时间,类型,分类名,分类图标,金额,备注\n'
 				records.forEach(record => {
 					const time = new Date(record.time).toLocaleString('zh-CN')
 					const type = record.type === 'expense' ? '支出' : '收入'
-					const category = record.categoryName
+					const categoryName = record.categoryName
+					const categoryIcon = record.categoryIcon || '📦' // 默认图标
 					const amount = record.amount
 					const note = record.note || ''
-					csvContent += `"${time}","${type}","${category}","${amount}","${note}"\n`
+					csvContent += `"${time}","${type}","${categoryName}","${categoryIcon}","${amount}","${note}"\n`
 				})
 				
 				// 检查平台支持
