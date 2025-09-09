@@ -84,7 +84,7 @@
 			</view>
 			<view class="info-item">
 				<text class="info-label">更新时间：</text>
-				<text class="info-value">2025-09-04</text>
+				<text class="info-value">2025-09-09</text>
 			</view>
 		</view>
 	</view>
