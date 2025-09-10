@@ -41,7 +41,7 @@
 			<view class="management-item icon-manage-item" @click="goToIconManage">
 				<view class="management-left">
 					<text class="management-icon">🎨</text>
-					<text class="management-text">图标管理</text>
+					<text class="management-text">分类管理</text>
 				</view>
 				<text class="management-arrow">></text>
 			</view>
@@ -80,7 +80,7 @@
 			<text class="info-title">关于应用</text>
 			<view class="info-item">
 				<text class="info-label">版本号：</text>
-				<text class="info-value">1.0.2</text>
+				<text class="info-value">1.0.3</text>
 			</view>
 			<view class="info-item">
 				<text class="info-label">更新时间：</text>

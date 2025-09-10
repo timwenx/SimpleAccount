@@ -1,5 +1,18 @@
 <template>
 	<view class="container">
+		
+		<!-- 图标管理入口 -->
+		<view class="icon-manage-entry" @click="goToIconManage">
+			<view class="entry-content">
+				<text class="entry-icon">🎨</text>
+				<view class="entry-text">
+					<text class="entry-title">图标管理</text>
+					<text class="entry-desc">管理分类图标</text>
+				</view>
+				<text class="entry-arrow">→</text>
+			</view>
+		</view>
+		
 		<!-- 类型切换 -->
 		<view class="type-tabs">
 			<view class="tab-item" :class="{active: currentType === 'expense'}" @click="switchType('expense')">
@@ -163,8 +176,13 @@
 					stat.totalAmount = stat.totalAmount.toFixed(2)
 				})
 				
-				// 按使用次数降序排列
-				stats.sort((a, b) => b.count - a.count)
+				// 按使用次数降序排列，相同次数时按总金额降序排列
+				stats.sort((a, b) => {
+					if (b.count !== a.count) {
+						return b.count - a.count; // 先按次数降序
+					}
+					return b.totalAmount - a.totalAmount; // 次数相同时按金额降序
+				})
 				
 				this.usageStats = stats
 			},
@@ -261,6 +279,82 @@
 	.tab-item.active .tab-text {
 		color: white;
 		font-weight: bold;
+	}
+	
+	.icon-manage-entry {
+		background-color: rgba(255, 255, 255, 0.95);
+		backdrop-filter: blur(10rpx);
+		border-radius: 20rpx;
+		margin-bottom: 30rpx;
+		box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.08);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+		position: relative;
+		overflow: hidden;
+	}
+	
+	.icon-manage-entry::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: -100%;
+		width: 100%;
+		height: 100%;
+		background: linear-gradient(90deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+		transition: left 0.3s ease;
+	}
+	
+	.icon-manage-entry:active::before {
+		left: 0;
+	}
+	
+	.icon-manage-entry:active {
+		transform: scale(0.98);
+		box-shadow: 0 6rpx 24rpx rgba(102, 126, 234, 0.2);
+	}
+	
+	.entry-content {
+		display: flex;
+		align-items: center;
+		padding: 30rpx 25rpx;
+		position: relative;
+		z-index: 1;
+	}
+	
+	.entry-icon {
+		font-size: 40rpx;
+		margin-right: 25rpx;
+		filter: drop-shadow(0 2rpx 4rpx rgba(0, 0, 0, 0.1));
+	}
+	
+	.entry-text {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 6rpx;
+	}
+	
+	.entry-title {
+		font-size: 32rpx;
+		color: #333;
+		font-weight: 600;
+	}
+	
+	.entry-desc {
+		font-size: 24rpx;
+		color: #999;
+		opacity: 0.8;
+	}
+	
+	.entry-arrow {
+		font-size: 28rpx;
+		color: #667eea;
+		font-weight: bold;
+		transition: transform 0.3s ease;
+	}
+	
+	.icon-manage-entry:active .entry-arrow {
+		transform: translateX(5rpx);
 	}
 	
 	.category-list, .usage-stats {

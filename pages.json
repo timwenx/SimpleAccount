@@ -21,7 +21,7 @@
 		{
 			"path": "pages/category/category",
 			"style": {
-				"navigationBarTitleText": "分类管理"
+				"navigationBarTitleText": "分类浏览"
 			}
 		},
 		{
@@ -39,7 +39,7 @@
 		{
 			"path": "pages/icon-manage/icon-manage",
 			"style": {
-				"navigationBarTitleText": "图标管理"
+				"navigationBarTitleText": "分类管理"
 			}
 		},
 		{
