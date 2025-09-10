@@ -12,13 +12,6 @@
 		<!-- AI功能 -->
 		<view class="data-management">
 			<text class="management-title">AI智能功能</text>
-			<!-- <view class="management-item ai-chat-item" @click="goToChat">
-				<view class="management-left">
-					<text class="management-icon">💬</text>
-					<text class="management-text">智能记账聊天</text>
-				</view>
-				<text class="management-arrow">></text>
-			</view> -->
 			<view class="management-item ai-config-item" @click="goToAIConfig">
 				<view class="management-left">
 					<text class="management-icon">🤖</text>
@@ -38,6 +31,13 @@
 		<!-- 数据管理 -->
 		<view class="data-management">
 			<text class="management-title">数据管理</text>
+			<view class="management-item budget-manage-item" @click="goToBudgetManage">
+				<view class="management-left">
+					<text class="management-icon">💰</text>
+					<text class="management-text">预算管理</text>
+				</view>
+				<text class="management-arrow">></text>
+			</view>
 			<view class="management-item icon-manage-item" @click="goToIconManage">
 				<view class="management-left">
 					<text class="management-icon">🎨</text>
@@ -138,6 +138,13 @@
 			goToVoiceConfig() {
 				uni.navigateTo({
 					url: '/pages/voice-config/voice-config'
+				})
+			},
+			
+			goToBudgetManage() {
+				// 跳转到预算管理页面
+				uni.navigateTo({
+					url: '/pages/budget-manage/budget-manage'
 				})
 			},
 			
