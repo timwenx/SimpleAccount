@@ -5,6 +5,7 @@ node_modules/
 unpackage/dist/
 unpackage/build/
 unpackage/resources/
+unpackage/release/
 
 # Cache
 unpackage/cache/

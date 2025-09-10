@@ -106,7 +106,7 @@
 						<view v-for="(stat, index) in expenseStats.slice(0, 5)" 
 							  :key="stat.categoryId" 
 							  class="legend-item">
-							<view class="legend-color" :style="{backgroundColor: getPieColor(index)}"></view>
+							<view class="legend-color" :style="{backgroundColor: getPieColor(getOriginalIndex(stat, expenseStats))}"></view>
 							<view class="legend-text-container">
 								<text class="legend-text">{{stat.name}} {{stat.percentage}}%</text>
 								<text class="legend-amount">¥{{stat.amount}}</text>
@@ -124,7 +124,7 @@
 				
 				<!-- 详细列表 -->
 				<view class="stats-list">
-					<view v-for="stat in expenseStats" :key="stat.categoryId" class="stat-item">
+					<view v-for="stat in expenseStats" :key="stat.categoryId" class="stat-item" @click="showCategoryDetail(stat, 'expense')">
 						<view class="stat-left">
 							<text class="stat-icon">{{stat.icon}}</text>
 							<view class="stat-info">
@@ -134,7 +134,10 @@
 						</view>
 						<view class="stat-right">
 							<text class="stat-amount">¥{{stat.amount}}</text>
-							<text class="stat-percent">{{stat.percentage}}%</text>
+							<view class="stat-details">
+								<text class="stat-percent">{{stat.percentage}}%</text>
+								<text class="view-hint">点击查看详情</text>
+							</view>
 						</view>
 					</view>
 				</view>
@@ -165,7 +168,7 @@
 						<view v-for="(stat, index) in incomeStats.slice(0, 5)" 
 							  :key="stat.categoryId" 
 							  class="legend-item">
-							<view class="legend-color" :style="{backgroundColor: getPieColor(index)}"></view>
+							<view class="legend-color" :style="{backgroundColor: getPieColor(getOriginalIndex(stat, incomeStats))}"></view>
 							<view class="legend-text-container">
 								<text class="legend-text">{{stat.name}} {{stat.percentage}}%</text>
 								<text class="legend-amount">¥{{stat.amount}}</text>
@@ -183,7 +186,7 @@
 				
 				<!-- 详细列表 -->
 				<view class="stats-list">
-					<view v-for="stat in incomeStats" :key="stat.categoryId" class="stat-item">
+					<view v-for="stat in incomeStats" :key="stat.categoryId" class="stat-item" @click="showCategoryDetail(stat, 'income')">
 						<view class="stat-left">
 							<text class="stat-icon">{{stat.icon}}</text>
 							<view class="stat-info">
@@ -193,7 +196,10 @@
 						</view>
 						<view class="stat-right">
 							<text class="stat-amount">¥{{stat.amount}}</text>
-							<text class="stat-percent">{{stat.percentage}}%</text>
+							<view class="stat-details">
+								<text class="stat-percent">{{stat.percentage}}%</text>
+								<text class="view-hint">点击查看详情</text>
+							</view>
 						</view>
 					</view>
 				</view>
@@ -376,8 +382,13 @@
 						)) : '0.00'
 				})
 				
-				// 按金额降序排列
-				stats.sort((a, b) => parseFloat(b.amount) - parseFloat(a.amount))
+				// 按百分比降序排列，百分比相同时按笔数降序排列
+				stats.sort((a, b) => {
+					if (parseFloat(b.percentage) !== parseFloat(a.percentage)) {
+						return parseFloat(b.percentage) - parseFloat(a.percentage); // 先按百分比降序
+					}
+					return b.count - a.count; // 百分比相同时按笔数降序
+				})
 				
 				return stats
 			},
@@ -490,14 +501,19 @@
 					}
 				})
 				
-				this.expenseTrendData = Object.values(expenseData).map(item => ({
-					...item,
-					amount: this.moneyCalculator.format(item.amount)
-				}))
-				this.incomeTrendData = Object.values(incomeData).map(item => ({
-					...item,
-					amount: this.moneyCalculator.format(item.amount)
-				}))
+				this.expenseTrendData = Object.values(expenseData)
+					.map(item => ({
+						...item,
+						amount: this.moneyCalculator.format(item.amount)
+					}))
+					.sort((a, b) => new Date(b.date) - new Date(a.date)) // 按日期降序排列（最新的在前）
+				
+				this.incomeTrendData = Object.values(incomeData)
+					.map(item => ({
+						...item,
+						amount: this.moneyCalculator.format(item.amount)
+					}))
+					.sort((a, b) => new Date(b.date) - new Date(a.date)) // 按日期降序排列（最新的在前）
 			},
 			
 			// 计算月趋势（显示最近12个月，从后往前）
@@ -526,14 +542,27 @@
 					}
 				})
 				
-				this.expenseTrendData = Object.values(expenseData).map(item => ({
-					...item,
-					amount: this.moneyCalculator.format(item.amount)
-				}))
-				this.incomeTrendData = Object.values(incomeData).map(item => ({
-					...item,
-					amount: this.moneyCalculator.format(item.amount)
-				}))
+				this.expenseTrendData = Object.values(expenseData)
+					.map(item => ({
+						...item,
+						amount: this.moneyCalculator.format(item.amount)
+					}))
+					.sort((a, b) => {
+						// 按年月降序排列（最新的在前）
+						if (b.year !== a.year) return b.year - a.year
+						return b.month - a.month
+					})
+				
+				this.incomeTrendData = Object.values(incomeData)
+					.map(item => ({
+						...item,
+						amount: this.moneyCalculator.format(item.amount)
+					}))
+					.sort((a, b) => {
+						// 按年月降序排列（最新的在前）
+						if (b.year !== a.year) return b.year - a.year
+						return b.month - a.month
+					})
 			},
 			
 			// 计算年趋势（显示最近5年，从后往前）
@@ -560,14 +589,19 @@
 					}
 				})
 				
-				this.expenseTrendData = Object.values(expenseData).map(item => ({
-					...item,
-					amount: this.moneyCalculator.format(item.amount)
-				}))
-				this.incomeTrendData = Object.values(incomeData).map(item => ({
-					...item,
-					amount: this.moneyCalculator.format(item.amount)
-				}))
+				this.expenseTrendData = Object.values(expenseData)
+					.map(item => ({
+						...item,
+						amount: this.moneyCalculator.format(item.amount)
+					}))
+					.sort((a, b) => b.year - a.year) // 按年份降序排列（最新的在前）
+				
+				this.incomeTrendData = Object.values(incomeData)
+					.map(item => ({
+						...item,
+						amount: this.moneyCalculator.format(item.amount)
+					}))
+					.sort((a, b) => b.year - a.year) // 按年份降序排列（最新的在前）
 			},
 			
 			// 获取趋势图柱状图高度
@@ -591,6 +625,26 @@
 					return `${item.year}`
 				}
 				return ''
+			},
+			
+			// 获取分类在原始排序中的索引，用于保持颜色一致性
+			getOriginalIndex(stat, statsArray) {
+				return statsArray.findIndex(item => item.categoryId === stat.categoryId)
+			},
+			
+			// 显示分类详情
+			showCategoryDetail(stat, type) {
+				const category = {
+					id: stat.categoryId,
+					name: stat.name,
+					icon: stat.icon,
+					type: type
+				}
+				
+				const categoryParam = encodeURIComponent(JSON.stringify(category))
+				uni.navigateTo({
+					url: `/pages/category-detail/category-detail?category=${categoryParam}`
+				})
 			}
 		}
 	}
@@ -693,8 +747,34 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		padding: 25rpx 0;
+		padding: 25rpx 20rpx;
 		border-bottom: 1px solid #F0F0F0;
+		border-radius: 16rpx;
+		margin-bottom: 8rpx;
+		transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+		position: relative;
+		overflow: hidden;
+		cursor: pointer;
+	}
+	
+	.stat-item::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: -100%;
+		width: 100%;
+		height: 100%;
+		background: linear-gradient(90deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+		transition: left 0.3s ease;
+	}
+	
+	.stat-item:active::before {
+		left: 0;
+	}
+	
+	.stat-item:active {
+		transform: scale(0.98);
+		box-shadow: 0 4rpx 12rpx rgba(102, 126, 234, 0.2);
 	}
 	
 	.stat-item:last-child {
@@ -705,6 +785,7 @@
 		display: flex;
 		align-items: center;
 		flex: 1;
+		z-index: 1;
 	}
 	
 	.stat-icon {
@@ -731,6 +812,34 @@
 	
 	.stat-right {
 		text-align: right;
+		z-index: 1;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 8rpx;
+	}
+	
+	.stat-details {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 6rpx;
+	}
+	
+	.view-hint {
+		font-size: 22rpx;
+		color: #667eea;
+		background: rgba(102, 126, 234, 0.08);
+		padding: 6rpx 12rpx;
+		border-radius: 16rpx;
+		font-weight: 500;
+		opacity: 0.7;
+		transition: all 0.3s ease;
+	}
+	
+	.stat-item:active .view-hint {
+		opacity: 1;
+		transform: translateX(3rpx);
 	}
 	
 	.stat-amount {

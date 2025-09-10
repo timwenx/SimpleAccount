@@ -98,12 +98,6 @@
 				"selectedIconPath": "static/tab-stats-active.png"
 			},
 			{
-				"pagePath": "pages/category/category",
-				"text": "分类",
-				"iconPath": "static/tab-category.png",
-				"selectedIconPath": "static/tab-category-active.png"
-			},
-			{
 				"pagePath": "pages/profile/profile",
 				"text": "我的",
 				"iconPath": "static/tab-profile.png",
