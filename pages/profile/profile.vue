@@ -170,8 +170,8 @@
 			refreshCategories() {
 				uni.showModal({
 					title: '刷新分类',
-					content: '此功能将：\n1. 同步账单记录中的分类名称和图标\n2. 为缺失的分类自动创建分类项\n3. 确保数据一致性\n\n确定要继续吗？',
-					confirmText: '开始刷新',
+					content: '将同步账单记录中的分类名称和图标，确定要继续吗？',
+					confirmText: '确认刷新',
 					cancelText: '取消',
 					success: (res) => {
 						if (res.confirm) {
