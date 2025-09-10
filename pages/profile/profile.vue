@@ -80,11 +80,11 @@
 			<text class="info-title">关于应用</text>
 			<view class="info-item">
 				<text class="info-label">版本号：</text>
-				<text class="info-value">1.0.2</text>
+				<text class="info-value">1.0.3</text>
 			</view>
 			<view class="info-item">
 				<text class="info-label">更新时间：</text>
-				<text class="info-value">2025-09-09</text>
+				<text class="info-value">2025-09-10</text>
 			</view>
 		</view>
 	</view>
@@ -168,11 +168,191 @@
 			},
 			
 			refreshCategories() {
-				// 刷新分类数据 - 重新加载默认分类
-				uni.setStorageSync('expenseCategories', [...this.defaultExpenseCategories])
-				uni.setStorageSync('incomeCategories', [...this.defaultIncomeCategories])
-				
-				this.showSuccessToast('分类数据已刷新', 1000)
+				uni.showModal({
+					title: '刷新分类',
+					content: '此功能将：\n1. 同步账单记录中的分类名称和图标\n2. 为缺失的分类自动创建分类项\n3. 确保数据一致性\n\n确定要继续吗？',
+					confirmText: '开始刷新',
+					cancelText: '取消',
+					success: (res) => {
+						if (res.confirm) {
+							this.performCategoryRefresh()
+						}
+					}
+				})
+			},
+			
+			performCategoryRefresh() {
+				try {
+					// 显示加载提示
+					uni.showLoading({
+						title: '正在刷新分类...'
+					})
+					
+					// 1. 获取所有账单记录
+					const records = uni.getStorageSync('records') || []
+					if (records.length === 0) {
+						uni.hideLoading()
+						uni.showToast({
+							title: '暂无账单记录',
+							icon: 'none'
+						})
+						return
+					}
+					
+					// 2. 获取当前的分类数据
+					const expenseCategories = uni.getStorageSync('expenseCategories') || []
+					const incomeCategories = uni.getStorageSync('incomeCategories') || []
+					
+					// 创建分类映射表，方便查找
+					const expenseCategoryMap = new Map()
+					const incomeCategoryMap = new Map()
+					
+					expenseCategories.forEach(cat => {
+						expenseCategoryMap.set(cat.id, cat)
+					})
+					incomeCategories.forEach(cat => {
+						incomeCategoryMap.set(cat.id, cat)
+					})
+					
+					// 3. 处理账单记录和分类同步
+					let updatedRecordsCount = 0
+					let createdCategoriesCount = 0
+					const updatedRecords = []
+					const newExpenseCategories = [...expenseCategories]
+					const newIncomeCategories = [...incomeCategories]
+					
+					// 用于跟踪需要创建的新分类
+					const missingExpenseCategories = new Map()
+					const missingIncomeCategories = new Map()
+					
+					// 4. 遍历所有账单记录，检查和更新分类信息
+					records.forEach(record => {
+						const categoryMap = record.type === 'expense' ? expenseCategoryMap : incomeCategoryMap
+						const currentCategory = categoryMap.get(record.categoryId)
+						
+						let updatedRecord = { ...record }
+						
+						if (currentCategory) {
+							// 分类存在，检查是否需要更新记录中的分类信息
+							if (record.categoryName !== currentCategory.name || 
+								record.categoryIcon !== currentCategory.icon) {
+								updatedRecord.categoryName = currentCategory.name
+								updatedRecord.categoryIcon = currentCategory.icon
+								updatedRecordsCount++
+							}
+						} else {
+							// 分类不存在，记录需要创建的分类
+							const missingMap = record.type === 'expense' ? missingExpenseCategories : missingIncomeCategories
+							const categoryKey = `${record.categoryId}_${record.categoryName}_${record.categoryIcon}`
+							
+							if (!missingMap.has(categoryKey)) {
+								missingMap.set(categoryKey, {
+									id: record.categoryId,
+									name: record.categoryName,
+									icon: record.categoryIcon,
+									originalId: record.categoryId // 保存原始ID用于后续更新
+								})
+							}
+						}
+						
+						updatedRecords.push(updatedRecord)
+					})
+					
+					// 5. 创建缺失的分类并处理ID冲突
+					const categoryIdMapping = new Map() // 用于记录ID变更
+					
+					missingExpenseCategories.forEach(category => {
+						const originalId = category.originalId
+						// 检查ID是否冲突，如果冲突则生成新ID
+						if (expenseCategoryMap.has(category.id)) {
+							const newId = this.generateNewCategoryId([...newExpenseCategories, ...newIncomeCategories])
+							categoryIdMapping.set(`expense_${originalId}`, newId)
+							category.id = newId
+						}
+						delete category.originalId // 删除临时属性
+						newExpenseCategories.push(category)
+						createdCategoriesCount++
+					})
+					
+					missingIncomeCategories.forEach(category => {
+						const originalId = category.originalId
+						// 检查ID是否冲突，如果冲突则生成新ID
+						if (incomeCategoryMap.has(category.id)) {
+							const newId = this.generateNewCategoryId([...newExpenseCategories, ...newIncomeCategories])
+							categoryIdMapping.set(`income_${originalId}`, newId)
+							category.id = newId
+						}
+						delete category.originalId // 删除临时属性
+						newIncomeCategories.push(category)
+						createdCategoriesCount++
+					})
+					
+					// 6. 更新记录中发生ID变更的分类ID
+					if (categoryIdMapping.size > 0) {
+						updatedRecords.forEach(record => {
+							const mappingKey = `${record.type}_${record.categoryId}`
+							const newId = categoryIdMapping.get(mappingKey)
+							if (newId) {
+								record.categoryId = newId
+								updatedRecordsCount++
+							}
+						})
+					}
+					
+					// 7. 保存更新后的数据
+					uni.setStorageSync('records', updatedRecords)
+					uni.setStorageSync('expenseCategories', newExpenseCategories)
+					uni.setStorageSync('incomeCategories', newIncomeCategories)
+					
+					// 隐藏加载提示
+					uni.hideLoading()
+					
+					// 8. 显示结果提示
+					let message = '分类刷新完成！'
+					if (updatedRecordsCount > 0 || createdCategoriesCount > 0) {
+						const details = []
+						if (updatedRecordsCount > 0) {
+							details.push(`更新了${updatedRecordsCount}条记录`)
+						}
+						if (createdCategoriesCount > 0) {
+							details.push(`创建了${createdCategoriesCount}个分类`)
+						}
+						message += '\n' + details.join('，')
+					} else {
+						message += '\n所有数据已是最新状态'
+					}
+					
+					uni.showModal({
+						title: '刷新完成',
+						content: message,
+						showCancel: false,
+						confirmText: '确定'
+					})
+					
+				} catch (error) {
+					uni.hideLoading()
+					console.error('刷新分类时出错:', error)
+					uni.showToast({
+						title: '刷新失败，请重试',
+						icon: 'error'
+					})
+				}
+			},
+			
+			// 生成新的分类ID，避免冲突
+			generateNewCategoryId(allCategories) {
+				let maxId = 0
+				allCategories.forEach(cat => {
+					if (typeof cat.id === 'number' && cat.id > maxId) {
+						maxId = cat.id
+					} else if (typeof cat.id === 'string') {
+						const numId = parseInt(cat.id)
+						if (!isNaN(numId) && numId > maxId) {
+							maxId = numId
+						}
+					}
+				})
+				return maxId + 1
 			},
 			
 			clearAllData() {
