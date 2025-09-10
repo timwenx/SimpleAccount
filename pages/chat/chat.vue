@@ -296,7 +296,7 @@
 					})
 					return
 				}
-				
+				this.loadVoiceConfig();
 				if (!this.voiceConfig) {
 					uni.showModal({
 						title: '需要配置语音识别',
