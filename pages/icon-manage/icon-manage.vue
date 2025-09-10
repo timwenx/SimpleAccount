@@ -673,20 +673,26 @@
 	
 	.form-input {
 		width: 100%;
-		padding: 24rpx;
+		height: 80rpx;
+		padding: 0 24rpx;
 		border: 2rpx solid #E5E5E5;
-		border-radius: 16rpx;
-		font-size: 30rpx;
+		border-radius: 12rpx;
+		font-size: 28rpx;
 		color: #333;
-		background: linear-gradient(145deg, #ffffff, #f8f9fa);
+		background-color: #FAFAFA;
+		box-sizing: border-box;
 		transition: all 0.3s ease;
-		box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
 	}
 	
 	.form-input:focus {
 		border-color: #007AFF;
-		box-shadow: 0 0 0 6rpx rgba(0, 122, 255, 0.1);
-		background: #ffffff;
+		background-color: #FFFFFF;
+		outline: none;
+	}
+	
+	.form-input::placeholder {
+		color: #999;
+		font-size: 26rpx;
 	}
 	
 	.icon-grid {

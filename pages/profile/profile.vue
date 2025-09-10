@@ -148,28 +148,45 @@
 				})
 			},
 			
+			// 统一的错误处理方法
+			showErrorDialog(title, message) {
+				uni.showModal({
+					title: title || '操作失败',
+					content: message || '请重试或联系技术支持',
+					showCancel: false,
+					confirmText: '我知道了'
+				})
+			},
+			
+			// 统一的成功提示方法
+			showSuccessToast(message, duration = 1500) {
+				uni.showToast({
+					title: message || '操作成功',
+					icon: 'success',
+					duration: duration
+				})
+			},
+			
 			refreshCategories() {
 				// 刷新分类数据 - 重新加载默认分类
 				uni.setStorageSync('expenseCategories', [...this.defaultExpenseCategories])
 				uni.setStorageSync('incomeCategories', [...this.defaultIncomeCategories])
 				
-				uni.showToast({
-					title: '分类已刷新',
-					icon: 'success',
-					duration: 500
-				})
+				this.showSuccessToast('分类数据已刷新', 1000)
 			},
 			
 			clearAllData() {
 				uni.showModal({
-					title: '确认清空',
-					content: '此操作将清空所有记账记录，且不可恢复。确定要继续吗？',
+					title: '清空所有数据',
+					content: '此操作将永久删除所有记账记录，无法恢复。确定要继续吗？',
 					confirmColor: '#FF6B6B',
+					confirmText: '确认清空',
+					cancelText: '取消',
 					success: (res) => {
 						if (res.confirm) {
 							uni.removeStorageSync('records')
 							uni.showToast({
-								title: '数据已清空',
+								title: '所有数据已清空',
 								icon: 'success'
 							})
 						}
@@ -189,16 +206,14 @@
 				}
 				
 				uni.showActionSheet({
-					itemList: ['从下载目录导入', '从文档目录导入', '手动输入路径', '从剪切板导入'],
+					itemList: ['从文件导入', '从剪贴板导入', '手动输入数据'],
 					success: (res) => {
 						if (res.tapIndex === 0) {
-							this.selectFromDownloads()
+							this.importFromFile()
 						} else if (res.tapIndex === 1) {
-							this.selectFromDocuments()
-						} else if (res.tapIndex === 2) {
-							this.manualInputPath()
-						} else if (res.tapIndex === 3) {
 							this.importFromClipboard()
+						} else if (res.tapIndex === 2) {
+							this.showCsvImportDialog()
 						}
 					}
 				})
@@ -206,13 +221,51 @@
 				
 				// #ifndef APP-PLUS
 				uni.showActionSheet({
-					itemList: ['从剪切板导入'],
+					itemList: ['从剪贴板导入', '手动输入数据'],
 					success: (res) => {
 						if (res.tapIndex === 0) {
 							this.importFromClipboard()
+						} else if (res.tapIndex === 1) {
+							this.showCsvImportDialog()
 						}
 					}
 				})
+				// #endif
+			},
+			
+			// 统一的文件导入入口
+			importFromFile() {
+				// #ifdef H5
+				this.importFromFileH5()
+				// #endif
+				
+				// #ifdef APP-PLUS
+				uni.showActionSheet({
+					itemList: ['从公共存储选择', '从下载目录选择', '从应用文档选择', '手动输入路径'],
+					success: (res) => {
+						if (res.tapIndex === 0) {
+							this.selectFromPublicStorage()
+						} else if (res.tapIndex === 1) {
+							this.selectFromDownloads()
+						} else if (res.tapIndex === 2) {
+							this.selectFromAppDocuments()
+						} else if (res.tapIndex === 3) {
+							this.manualInputPath()
+						}
+					}
+				})
+				// #endif
+				
+				// #ifdef MP-WEIXIN
+				this.importFromFileWx()
+				// #endif
+				
+				// #ifdef MP && !MP-WEIXIN
+				this.fallbackImport()
+				// #endif
+				
+				// #ifndef H5 || APP-PLUS || MP
+				this.fallbackImport()
 				// #endif
 			},
 			
@@ -220,11 +273,12 @@
 				console.log('=== 显示CSV数据输入对话框 ===')
 				// 使用 prompt 来获取用户输入的CSV数据
 				uni.showModal({
-					title: '粘贴CSV数据',
-					content: '请将CSV数据粘贴到下方：\n新格式：时间,类型,分类名,分类图标,金额,备注\n旧格式：时间,类型,分类名,金额,备注\n\n示例：\n"2024-01-01 12:00","支出","餐饮","🍽️","25.50","午餐"',
+					title: '导入数据',
+					content: '请将CSV格式的数据粘贴到下方输入框：\n\n新格式：时间,类型,分类名,分类图标,金额,备注\n旧格式：时间,类型,分类名,金额,备注\n\n示例：\n"2024-01-01 12:00","支出","餐饮","🍽️","25.50","午餐"',
 					editable: true,
 					placeholderText: '请粘贴CSV数据...',
-					confirmText: '导入',
+					confirmText: '开始导入',
+					cancelText: '取消',
 					success: (res) => {
 						console.log('CSV输入对话框结果:', res)
 						if (res.confirm && res.content && res.content.trim()) {
@@ -234,7 +288,7 @@
 						} else if (res.confirm) {
 							console.log('用户确认但未输入数据')
 							uni.showToast({
-								title: '请输入数据',
+								title: '请输入有效数据',
 								icon: 'none'
 							})
 						} else {
@@ -298,10 +352,10 @@
 				
 				if (!clipboardData || !clipboardData.trim()) {
 					uni.showModal({
-						title: '剪切板为空',
-						content: '剪切板中没有找到数据，请先复制CSV格式的数据到剪切板。\n\n新格式：时间,类型,分类名,分类图标,金额,备注\n旧格式：时间,类型,分类名,金额,备注',
+						title: '剪贴板为空',
+						content: '剪贴板中没有找到数据，请先复制CSV格式的数据。\n\n支持格式：\n新格式：时间,类型,分类名,分类图标,金额,备注\n旧格式：时间,类型,分类名,金额,备注',
 						showCancel: false,
-						confirmText: '知道了'
+						confirmText: '我知道了'
 					})
 					return
 				}
@@ -311,9 +365,9 @@
 				if (!trimmedData.includes(',')) {
 					uni.showModal({
 						title: '数据格式错误',
-						content: '剪切板中的数据不是CSV格式，请确保数据包含逗号分隔的字段。\n\n新格式：时间,类型,分类名,分类图标,金额,备注\n旧格式：时间,类型,分类名,金额,备注',
+						content: '检测到的数据不是有效的CSV格式，请确保数据包含逗号分隔的字段。\n\n支持格式：\n新格式：时间,类型,分类名,分类图标,金额,备注\n旧格式：时间,类型,分类名,金额,备注',
 						showCancel: false,
-						confirmText: '知道了'
+						confirmText: '我知道了'
 					})
 					return
 				}
@@ -321,9 +375,9 @@
 				// 显示确认对话框
 				const lines = trimmedData.split('\n').filter(line => line.trim())
 				uni.showModal({
-					title: '确认导入',
-					content: `检测到剪切板中有${lines.length}行数据，是否导入？\n\n数据预览：\n${trimmedData.substring(0, 100)}${trimmedData.length > 100 ? '...' : ''}`,
-					confirmText: '导入',
+					title: '确认导入数据',
+					content: `检测到 ${lines.length} 行数据，确定要导入吗？\n\n数据预览：\n${trimmedData.substring(0, 100)}${trimmedData.length > 100 ? '...' : ''}`,
+					confirmText: '确认导入',
 					cancelText: '取消',
 					success: (modalRes) => {
 						if (modalRes.confirm) {
@@ -339,10 +393,10 @@
 			showManualPasteDialog() {
 				console.log('=== 显示手动粘贴对话框 ===')
 				uni.showModal({
-					title: '手动粘贴数据',
-					content: '无法自动读取剪切板，请手动粘贴CSV数据。点击确定后将显示输入框。\n\n新格式：时间,类型,分类名,分类图标,金额,备注\n旧格式：时间,类型,分类名,金额,备注',
+					title: '手动输入数据',
+					content: '无法自动读取剪贴板内容，请点击确定后手动输入CSV数据。\n\n支持格式：\n新格式：时间,类型,分类名,分类图标,金额,备注\n旧格式：时间,类型,分类名,金额,备注',
 					showCancel: true,
-					confirmText: '输入数据',
+					confirmText: '手动输入',
 					cancelText: '取消',
 					success: (res) => {
 						if (res.confirm) {
@@ -366,9 +420,9 @@
 						console.log('现代Clipboard API写入成功')
 						uni.showModal({
 							title: '导出成功',
-							content: `已将${recordCount}条记录复制到剪切板\n\n您可以粘贴到任意文本编辑器中保存为CSV文件，或直接在其他应用中使用。`,
+							content: `已将 ${recordCount} 条记录复制到剪贴板！\n\n您可以将数据粘贴到任意文本编辑器中保存为CSV文件，或直接在其他应用中使用。`,
 							showCancel: false,
-							confirmText: '知道了'
+							confirmText: '我知道了'
 						})
 					}).catch(err => {
 						console.error('现代Clipboard API失败:', err)
@@ -388,18 +442,18 @@
 						console.log('uni-app剪切板写入成功')
 						uni.showModal({
 							title: '导出成功',
-							content: `已将${recordCount}条记录复制到剪切板\n\n您可以粘贴到任意文本编辑器中保存为CSV文件，或直接在其他应用中使用。`,
+							content: `已将 ${recordCount} 条记录复制到剪贴板！\n\n您可以将数据粘贴到任意文本编辑器中保存为CSV文件，或直接在其他应用中使用。`,
 							showCancel: false,
-							confirmText: '知道了'
+							confirmText: '我知道了'
 						})
 					},
 					fail: (err) => {
 						console.error('uni-app剪切板写入失败:', err)
 						uni.showModal({
 							title: '导出失败',
-							content: '无法将数据复制到剪切板，请检查权限设置。\n\n您可以尝试其他导出方式。',
+							content: '无法复制数据到剪贴板，请检查应用权限设置。\n\n您可以尝试其他导出方式。',
 							showCancel: false,
-							confirmText: '知道了'
+							confirmText: '我知道了'
 						})
 					}
 				})
@@ -648,15 +702,16 @@
 						}
 						
 						uni.showModal({
-							title: '导入成功',
+							title: '导入完成',
 							content: successMessage,
-							showCancel: false
+							showCancel: false,
+							confirmText: '我知道了'
 						})
 						console.log('=== CSV导入流程完成 ===')
 					} else {
-						console.log('没有有效数据可导入')
+						console.log('没有可导入的有效数据')
 						uni.showToast({
-							title: '没有有效数据可导入',
+							title: '没有可导入的有效数据',
 							icon: 'none'
 						})
 					}
@@ -669,69 +724,101 @@
 					
 					uni.showModal({
 						title: '数据格式错误',
-						content: '请检查CSV数据格式是否正确\n\n新格式：时间,类型,分类名,分类图标,金额,备注\n旧格式：时间,类型,分类名,金额,备注\n\n示例：\n"2024-01-01 12:00","支出","餐饮","🍽️","25.50","午餐"',
+						content: '请检查数据格式是否正确！\n\n支持格式：\n新格式：时间,类型,分类名,分类图标,金额,备注\n旧格式：时间,类型,分类名,金额,备注\n\n示例：\n"2024-01-01 12:00","支出","餐饮","🍽️","25.50","午餐"',
 						showCancel: false,
-						confirmText: '知道了'
+						confirmText: '我知道了'
 					})
 				}
 			},
 			
-			importFromFile() {
-				console.log('=== 开始文件导入流程 ===')
-				console.log('检测当前平台...')
+			// H5平台文件导入
+			importFromFileH5() {
+				console.log('=== H5平台文件选择流程 ===')
+				// H5平台的文件选择实现
+				const input = document.createElement('input')
+				input.type = 'file'
+				input.accept = '.csv,.txt'
+				input.style.display = 'none'
+				console.log('创建文件选择元素:', input)
 				
-				// 运行时平台检测
-				console.log('运行时环境信息:')
-				console.log('- uni 对象存在:', typeof uni !== 'undefined')
-				console.log('- wx 对象存在:', typeof wx !== 'undefined')
-				console.log('- plus 对象存在:', typeof plus !== 'undefined')
-				console.log('- document 对象存在:', typeof document !== 'undefined')
-				console.log('- window 对象存在:', typeof window !== 'undefined')
-				
-				// uni-app 平台信息
-				if (typeof uni !== 'undefined' && uni.getSystemInfoSync) {
-					try {
-						const systemInfo = uni.getSystemInfoSync()
-						console.log('系统信息:', systemInfo)
-						console.log('平台:', systemInfo.platform)
-						console.log('系统:', systemInfo.system)
-						console.log('品牌:', systemInfo.brand)
-						console.log('型号:', systemInfo.model)
-					} catch (e) {
-						console.log('获取系统信息失败:', e)
+				input.onchange = (event) => {
+					console.log('=== H5文件选择change事件触发 ===')
+					const file = event.target.files[0]
+					console.log('选择的文件对象:', file)
+					
+					if (!file) {
+						console.log('未选择文件或文件为空')
+						uni.showToast({
+							title: '未选择文件',
+							icon: 'none'
+						})
+						return
 					}
+					
+					// 检查文件大小
+					if (file.size === 0) {
+						console.error('文件大小为0')
+						uni.showToast({
+							title: '文件为空',
+							icon: 'error'
+						})
+						return
+					}
+					
+					if (file.size > 5 * 1024 * 1024) { // 5MB限制
+						console.error('文件过大:', file.size)
+						uni.showToast({
+							title: '文件不能超过5MB',
+							icon: 'error'
+						})
+						return
+					}
+					
+					console.log('文件大小检查通过，开始读取文件内容...')
+					const reader = new FileReader()
+					
+					reader.onload = (e) => {
+						console.log('=== FileReader读取完成 ===')
+						const content = e.target.result
+						
+						if (!content || typeof content !== 'string') {
+							console.error('读取到的内容无效')
+							uni.showToast({
+								title: '文件内容无效',
+								icon: 'error'
+							})
+							return
+						}
+						
+						console.log('文件读取成功，开始解析CSV数据...')
+						this.parseCsvData(content)
+					}
+					
+					reader.onerror = (e) => {
+						console.error('=== FileReader读取失败 ===', e)
+						uni.showToast({
+							title: '读取文件失败',
+							icon: 'error'
+						})
+					}
+					
+					console.log('开始FileReader.readAsText操作...')
+					reader.readAsText(file, 'UTF-8')
+					
+					// 清理DOM元素
+					console.log('清理文件选择元素')
+					document.body.removeChild(input)
 				}
 				
-				// 检查平台和API支持
-				// #ifdef H5
-				console.log('编译平台: H5，使用文件选择器')
-				// H5平台使用input file
-				this.importFromFileH5()
-				// #endif
+				// 用户取消选择文件时的处理
+				input.oncancel = () => {
+					console.log('文件选择cancel事件触发')
+					document.body.removeChild(input)
+				}
 				
-				// #ifdef APP-PLUS
-				console.log('编译平台: APP-PLUS，使用plus.io')
-				// App平台使用plus.io
-				this.importFromFileApp()
-				// #endif
-				
-				// #ifdef MP-WEIXIN
-				console.log('编译平台: 微信小程序，使用wx.chooseMessageFile')
-				// 微信小程序平台的处理
-				this.importFromFileWx()
-				// #endif
-				
-				// #ifdef MP && !MP-WEIXIN
-				console.log('编译平台: 其他小程序，降级处理')
-				// 其他小程序平台处理
-				this.fallbackImport()
-				// #endif
-				
-				// #ifndef H5 || APP-PLUS || MP
-				console.log('编译平台: 未知平台，降级处理')
-				// 其他平台降级处理
-				this.fallbackImport()
-				// #endif
+				console.log('添加文件选择元素到DOM并触发点击')
+				document.body.appendChild(input)
+				input.click()
 			},
 			
 			importFromFileWx() {
@@ -836,74 +923,71 @@
 				})
 			},
 			
-			importFromFileApp() {
-				// App平台使用文档选择器
-				if (typeof plus !== 'undefined') {
-					// 使用文档选择器
-					plus.io.requestFileSystem(plus.io.PRIVATE_DOC, (fs) => {
-						// 直接调用系统文件选择器
-						plus.gallery.pick((path) => {
-							// 这里可能需要特殊处理，因为gallery主要用于图片
-							// 改用更通用的方法
-							this.showFilePickerApp()
-						}, (err) => {
-							console.error('选择文件失败:', err)
-							this.showFilePickerApp()
-						}, {
-							filter: "file"
-						})
-					})
-				} else {
-					this.fallbackImport()
-				}
-			},
-			
-			showFilePickerApp() {
-				// App平台的文件选择实现
-				if (typeof plus !== 'undefined') {
-					// 显示选择方式
-					uni.showActionSheet({
-						itemList: ['从下载目录选择', '从文档目录选择', '手动输入路径'],
-						success: (res) => {
-							if (res.tapIndex === 0) {
-								this.selectFromDownloads()
-							} else if (res.tapIndex === 1) {
-								this.selectFromDocuments()
-							} else if (res.tapIndex === 2) {
-								this.manualInputPath()
-							}
-						}
-					})
-				} else {
-					this.fallbackImport()
-				}
-			},
-			
 			selectFromDownloads() {
+				console.log('=== 从下载目录选择文件 ===')
 				plus.io.requestFileSystem(plus.io.PUBLIC_DOWNLOADS, (fs) => {
-					fs.root.createReader().readEntries((entries) => {
-						const csvFiles = entries.filter(entry => 
-							entry.name.toLowerCase().endsWith('.csv') || 
-							entry.name.toLowerCase().endsWith('.txt')
+					console.log('获取下载目录文件系统成功')
+					
+					// 首先检查下载目录根目录中的CSV文件
+					fs.root.createReader().readEntries((rootEntries) => {
+						const rootCsvFiles = rootEntries.filter(entry => 
+							entry.isFile && (
+								entry.name.toLowerCase().endsWith('.csv') || 
+								entry.name.toLowerCase().endsWith('.txt')
+							)
 						)
 						
-						if (csvFiles.length === 0) {
-							uni.showToast({
-								title: '下载目录中没有找到CSV文件',
-								icon: 'none'
+						// 然后检查AccountData子目录
+						fs.root.getDirectory('AccountData', {create: false}, (accountDataEntry) => {
+							console.log('找到AccountData目录')
+							accountDataEntry.createReader().readEntries((subEntries) => {
+								const subCsvFiles = subEntries.filter(entry => 
+									entry.isFile && (
+										entry.name.toLowerCase().endsWith('.csv') || 
+										entry.name.toLowerCase().endsWith('.txt')
+									)
+								).map(entry => ({
+									...entry,
+									displayName: `AccountData/${entry.name}`,
+									isFromSubDir: true
+								}))
+								
+								// 合并所有文件
+								const allFiles = [
+									...rootCsvFiles.map(entry => ({
+										...entry,
+										displayName: entry.name,
+										isFromSubDir: false
+									})),
+									...subCsvFiles
+								]
+								
+								this.showFileSelectionDialog(allFiles, '下载目录')
+							}, (err) => {
+								console.log('AccountData目录为空或读取失败:', err)
+								this.showFileSelectionDialog(
+									rootCsvFiles.map(entry => ({
+										...entry,
+										displayName: entry.name,
+										isFromSubDir: false
+									})), 
+									'下载目录'
+								)
 							})
-							return
-						}
-						
-						// 显示文件选择列表
-						const fileNames = csvFiles.map(file => file.name)
-						uni.showActionSheet({
-							itemList: fileNames,
-							success: (res) => {
-								const selectedFile = csvFiles[res.tapIndex]
-								this.readFileContent(selectedFile)
-							}
+						}, (err) => {
+							console.log('AccountData目录不存在:', err)
+							this.showFileSelectionDialog(
+								rootCsvFiles.map(entry => ({
+									...entry,
+									displayName: entry.name,
+									isFromSubDir: false
+								})), 
+								'下载目录'
+							)
 						})
+					}, (err) => {
+						console.error('读取下载目录失败:', err)
+						this.fallbackImport()
 					})
 				}, (err) => {
 					console.error('访问下载目录失败:', err)
@@ -943,6 +1027,231 @@
 				})
 			},
 			
+			// 从公共存储（下载目录的AccountData子目录）导入
+			selectFromPublicStorage() {
+				console.log('=== 从公共存储选择文件 ===')
+				
+				// 首先尝试使用原生 API 访问真正的公共目录
+				try {
+					const Environment = plus.android.importClass('android.os.Environment')
+					const File = plus.android.importClass('java.io.File')
+					
+					// 获取公共下载目录
+					let publicDownloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+					
+					// 检查是否成功获取下载目录
+					if (publicDownloadsDir === null || publicDownloadsDir === undefined) {
+						// 尝试备用方案：手动构建下载目录路径
+						const externalStorageDir = Environment.getExternalStorageDirectory()
+						if (externalStorageDir !== null) {
+							publicDownloadsDir = new File(externalStorageDir, 'Download')
+							console.log('使用备用下载目录路径:', publicDownloadsDir.getAbsolutePath())
+						} else {
+							throw new Error('无法获取任何外部存储目录')
+						}
+					}
+					
+					const accountDataDir = new File(publicDownloadsDir, 'AccountData')
+					
+					if (!accountDataDir.exists()) {
+						uni.showToast({
+							title: '未找到AccountData目录，请先导出数据',
+							icon: 'none'
+						})
+						return
+					}
+					
+					// 获取目录中的文件列表
+					const files = accountDataDir.listFiles()
+					if (!files || files.length === 0) {
+						uni.showToast({
+							title: 'AccountData目录为空',
+							icon: 'none'
+						})
+						return
+					}
+					
+					// 过滤CSV和TXT文件
+					const csvFiles = []
+					for (let i = 0; i < files.length; i++) {
+						const file = files[i]
+						const fileName = file.getName()
+						if (fileName.toLowerCase().endsWith('.csv') || fileName.toLowerCase().endsWith('.txt')) {
+							csvFiles.push({
+								name: fileName,
+								fullPath: file.getAbsolutePath(),
+								displayName: fileName,
+								isFromPublicDir: true,
+								nativeFile: file
+							})
+						}
+					}
+					
+					if (csvFiles.length === 0) {
+						uni.showToast({
+							title: '未找到CSV或TXT文件',
+							icon: 'none'
+						})
+						return
+					}
+					
+					this.showFileSelectionDialog(csvFiles, '真正的公共存储(AccountData目录)')
+					
+				} catch (error) {
+					console.error('访问公共目录失败:', error)
+					// 降级使用 plus.io API
+					this.fallbackSelectFromPublicStorage()
+				}
+			},
+			
+			// 降级的公共存储选择方法
+			fallbackSelectFromPublicStorage() {
+				console.log('降级使用 plus.io API 选择文件')
+				plus.io.requestFileSystem(plus.io.PUBLIC_DOWNLOADS, (fs) => {
+					console.log('获取下载目录文件系统成功')
+					
+					// 直接访问AccountData子目录
+					fs.root.getDirectory('AccountData', {create: false}, (accountDataEntry) => {
+						console.log('找到AccountData目录')
+						accountDataEntry.createReader().readEntries((entries) => {
+							const csvFiles = entries.filter(entry => 
+								entry.isFile && (
+									entry.name.toLowerCase().endsWith('.csv') || 
+									entry.name.toLowerCase().endsWith('.txt')
+								)
+							).map(entry => ({
+								...entry,
+								displayName: entry.name,
+								isFromSubDir: true,
+								parentDir: accountDataEntry
+							}))
+							
+							this.showFileSelectionDialog(csvFiles, '公共存储(AccountData目录)')
+						}, (err) => {
+							console.error('读取AccountData目录失败:', err)
+							uni.showToast({
+								title: 'AccountData目录为空或无法访问',
+								icon: 'none'
+							})
+						})
+					}, (err) => {
+						console.error('AccountData目录不存在:', err)
+						uni.showToast({
+							title: '未找到AccountData目录，请先导出数据',
+							icon: 'none'
+						})
+					})
+				}, (err) => {
+					console.error('访问公共存储失败:', err)
+					this.fallbackImport()
+				})
+			},
+			
+			// 从应用文档目录导入
+			selectFromAppDocuments() {
+				console.log('=== 从应用文档目录选择文件 ===')
+				
+				// 首先尝试访问外部文档目录
+				const externalPath = plus.io.convertLocalFileSystemURL("_documents/")
+				plus.io.resolveLocalFileSystemURL(externalPath, (externalEntry) => {
+					console.log('找到外部文档目录')
+					externalEntry.createReader().readEntries((entries) => {
+						const csvFiles = entries.filter(entry => 
+							entry.isFile && (
+								entry.name.toLowerCase().endsWith('.csv') || 
+								entry.name.toLowerCase().endsWith('.txt')
+							)
+						).map(entry => ({
+							...entry,
+							displayName: `外部文档/${entry.name}`,
+							isFromSubDir: false
+						}))
+						
+						// 同时检查私有文档目录
+						this.checkPrivateDocuments((privateCsvFiles) => {
+							const allFiles = [...csvFiles, ...privateCsvFiles]
+							this.showFileSelectionDialog(allFiles, '应用文档目录')
+						})
+					}, (err) => {
+						console.log('外部文档目录为空:', err)
+						// 回退到私有文档目录
+						this.checkPrivateDocuments((privateCsvFiles) => {
+							this.showFileSelectionDialog(privateCsvFiles, '应用文档目录')
+						})
+					})
+				}, (err) => {
+					console.log('外部文档目录不存在:', err)
+					// 回退到私有文档目录
+					this.checkPrivateDocuments((privateCsvFiles) => {
+						this.showFileSelectionDialog(privateCsvFiles, '应用文档目录')
+					})
+				})
+			},
+			
+			// 检查私有文档目录
+			checkPrivateDocuments(callback) {
+				plus.io.requestFileSystem(plus.io.PRIVATE_DOC, (fs) => {
+					fs.root.createReader().readEntries((entries) => {
+						const csvFiles = entries.filter(entry => 
+							entry.isFile && (
+								entry.name.toLowerCase().endsWith('.csv') || 
+								entry.name.toLowerCase().endsWith('.txt')
+							)
+						).map(entry => ({
+							...entry,
+							displayName: `私有文档/${entry.name}`,
+							isFromSubDir: false
+						}))
+						callback(csvFiles)
+					}, (err) => {
+						console.log('私有文档目录为空:', err)
+						callback([])
+					})
+				}, (err) => {
+					console.error('访问私有文档目录失败:', err)
+					callback([])
+				})
+			},
+			
+			// 显示文件选择对话框
+			showFileSelectionDialog(files, sourceDesc) {
+				if (files.length === 0) {
+					uni.showToast({
+						title: `${sourceDesc}中没有找到CSV文件`,
+						icon: 'none'
+					})
+					return
+				}
+				
+				console.log(`找到${files.length}个文件:`, files.map(f => f.displayName))
+				
+				// 显示文件选择列表
+				const fileNames = files.map(file => file.displayName)
+				uni.showActionSheet({
+					itemList: fileNames,
+					success: (res) => {
+						const selectedFile = files[res.tapIndex]
+						console.log('选择的文件:', selectedFile.displayName)
+						
+						if (selectedFile.isFromSubDir && selectedFile.parentDir) {
+							// 从子目录中读取文件
+							selectedFile.parentDir.getFile(selectedFile.name, {create: false}, (fileEntry) => {
+								this.readFileContent(fileEntry)
+							}, (err) => {
+								console.error('获取子目录文件失败:', err)
+								uni.showToast({
+									title: '文件访问失败',
+									icon: 'error'
+								})
+							})
+						} else {
+							// 直接读取文件
+							this.readFileContent(selectedFile)
+						}
+					}
+				})
+			},
+			
 			manualInputPath() {
 				uni.showModal({
 					title: '输入文件路径',
@@ -970,195 +1279,78 @@
 			},
 			
 			readFileContent(fileEntry) {
-				fileEntry.file((file) => {
-					const reader = new plus.io.FileReader()
-					reader.onload = (e) => {
-						this.parseCsvData(e.target.result)
-					}
-					reader.onerror = (err) => {
-						console.error('读取文件失败:', err)
+				// 检查是否是从真正的公共目录选择的文件
+				if (fileEntry.isFromPublicDir && fileEntry.nativeFile) {
+					console.log('从公共目录读取文件:', fileEntry.fullPath)
+					try {
+						const FileInputStream = plus.android.importClass('java.io.FileInputStream')
+						const InputStreamReader = plus.android.importClass('java.io.InputStreamReader')
+						const BufferedReader = plus.android.importClass('java.io.BufferedReader')
+						const StringBuilder = plus.android.importClass('java.lang.StringBuilder')
+						
+						const fis = new FileInputStream(fileEntry.nativeFile)
+						const isr = new InputStreamReader(fis, 'UTF-8')
+						const br = new BufferedReader(isr)
+						
+						const sb = new StringBuilder()
+						let line
+						while ((line = br.readLine()) !== null) {
+							sb.append(line).append('\n')
+						}
+						
+						br.close()
+						isr.close()
+						fis.close()
+						
+						const content = sb.toString()
+						console.log('文件内容读取完成，长度:', content.length)
+						this.parseCsvData(content)
+						
+					} catch (error) {
+						console.error('读取公共目录文件失败:', error)
 						uni.showToast({
 							title: '读取文件失败',
 							icon: 'none'
 						})
 					}
-					reader.readAsText(file, 'UTF-8')
-				}, (err) => {
-					console.error('获取文件内容失败:', err)
-					uni.showToast({
-						title: '获取文件内容失败',
-						icon: 'none'
+				} else {
+					// 使用原有的方法读取其他来源的文件
+					fileEntry.file((file) => {
+						const reader = new plus.io.FileReader()
+						reader.onload = (e) => {
+							this.parseCsvData(e.target.result)
+						}
+						reader.onerror = (err) => {
+							console.error('读取文件失败:', err)
+							uni.showToast({
+								title: '读取文件失败',
+								icon: 'none'
+							})
+						}
+						reader.readAsText(file, 'UTF-8')
+					}, (err) => {
+						console.error('获取文件内容失败:', err)
+						uni.showToast({
+							title: '获取文件内容失败',
+							icon: 'none'
+						})
 					})
-				})
+				}
 			},
 			
 			fallbackImport() {
 				uni.showModal({
 					title: '导入提示',
-					content: '当前环境不支持文件选择，请使用"粘贴CSV数据导入"功能',
-					showCancel: false,
-					success: () => {
-						this.showCsvImportDialog()
+					content: '当前环境不支持文件选择功能，请使用"手动输入数据"方式导入。',
+					showCancel: true,
+					confirmText: '手动输入',
+					cancelText: '取消',
+					success: (res) => {
+						if (res.confirm) {
+							this.showCsvImportDialog()
+						}
 					}
 				})
-			},
-			
-			importFromFileH5() {
-				console.log('=== H5平台文件选择流程 ===')
-				// H5平台的文件选择实现
-				const input = document.createElement('input')
-				input.type = 'file'
-				input.accept = '.csv,.txt'
-				input.style.display = 'none'
-				console.log('创建文件选择元素:', input)
-				
-				input.onchange = (event) => {
-					console.log('=== H5文件选择change事件触发 ===')
-					console.log('事件对象:', event)
-					console.log('target:', event.target)
-					console.log('files:', event.target.files)
-					console.log('files长度:', event.target.files ? event.target.files.length : 0)
-					
-					const file = event.target.files[0]
-					console.log('选择的文件对象:', file)
-					
-					if (!file) {
-						console.log('未选择文件或文件为空')
-						uni.showToast({
-							title: '未选择文件',
-							icon: 'none'
-						})
-						return
-					}
-					
-					console.log('文件基本信息:', {
-						name: file.name,
-						size: file.size,
-						type: file.type,
-						lastModified: file.lastModified,
-						lastModifiedDate: file.lastModifiedDate
-					})
-					
-					// 检查文件大小
-					if (file.size === 0) {
-						console.error('文件大小为0')
-						uni.showToast({
-							title: '文件为空',
-							icon: 'error'
-						})
-						return
-					}
-					
-					if (file.size > 5 * 1024 * 1024) { // 5MB限制
-						console.error('文件过大:', file.size)
-						uni.showToast({
-							title: '文件不能超过5MB',
-							icon: 'error'
-						})
-						return
-					}
-					
-					console.log('文件大小检查通过，开始读取文件内容...')
-					const reader = new FileReader()
-					
-					reader.onload = (e) => {
-						console.log('=== FileReader读取完成 ===')
-						console.log('读取事件:', e)
-						console.log('读取目标:', e.target)
-						console.log('读取状态:', e.target.readyState)
-						
-						const content = e.target.result
-						console.log('读取结果类型:', typeof content)
-						console.log('内容是否为null:', content === null)
-						console.log('内容是否为undefined:', content === undefined)
-						
-						if (!content) {
-							console.error('读取到的内容为空')
-							uni.showToast({
-								title: '文件内容为空',
-								icon: 'error'
-							})
-							return
-						}
-						
-						if (typeof content !== 'string') {
-							console.error('读取到的内容不是字符串:', typeof content)
-							uni.showToast({
-								title: '文件格式错误',
-								icon: 'error'
-							})
-							return
-						}
-						
-						console.log('文件读取成功！')
-						console.log('内容长度:', content.length)
-						console.log('内容预览:', content.substring(0, 200) + (content.length > 200 ? '...' : ''))
-						console.log('开始解析CSV数据...')
-						
-						this.parseCsvData(content)
-					}
-					
-					reader.onerror = (e) => {
-						console.error('=== FileReader读取失败 ===')
-						console.error('错误事件:', e)
-						console.error('错误目标:', e.target)
-						console.error('错误状态:', e.target.readyState)
-						console.error('错误详情:', e.target.error)
-						
-						uni.showToast({
-							title: '读取文件失败: ' + (e.target.error ? e.target.error.message : '未知错误'),
-							icon: 'error'
-						})
-					}
-					
-					reader.onabort = (e) => {
-						console.log('=== FileReader读取被中止 ===')
-						console.log('中止事件:', e)
-						uni.showToast({
-							title: '文件读取被中止',
-							icon: 'none'
-						})
-					}
-					
-					console.log('开始FileReader.readAsText操作...')
-					reader.readAsText(file, 'UTF-8')
-					
-					// 清理DOM元素
-					console.log('清理文件选择元素')
-					document.body.removeChild(input)
-				}
-				
-				// 用户取消选择文件时的处理
-				input.oncancel = () => {
-					console.log('文件选择cancel事件触发')
-					document.body.removeChild(input)
-				}
-				
-				// 监听窗口焦点变化来检测用户是否取消了文件选择
-				let timeoutId = null
-				const handleFocus = () => {
-					console.log('窗口获得焦点，检查文件选择状态')
-					// 延迟检查，给文件选择一些时间
-					timeoutId = setTimeout(() => {
-						if (input.files.length === 0) {
-							console.log('用户可能取消了文件选择，清理DOM')
-							// 用户可能取消了选择，清理DOM
-							try {
-								document.body.removeChild(input)
-							} catch (e) {
-								console.log('DOM元素已被移除')
-								// DOM元素可能已经被移除
-							}
-						}
-						window.removeEventListener('focus', handleFocus)
-					}, 100)
-				}
-				
-				window.addEventListener('focus', handleFocus)
-				
-				console.log('添加文件选择元素到DOM并触发点击')
-				document.body.appendChild(input)
-				input.click()
 			},
 			
 			parseCSVLine(line) {
@@ -1379,19 +1571,15 @@
 				
 				// 显示选择导出方式
 				uni.showActionSheet({
-					itemList: ['保存到下载目录', '保存到文档目录', '手动输入路径', '复制到剪切板'],
+					itemList: ['保存为文件', '复制到剪贴板'],
 					success: (res) => {
 						const now = new Date()
 						const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '')
 						const fileName = `记账数据_${dateStr}.csv`
 						
 						if (res.tapIndex === 0) {
-							this.saveToDownloads(csvContent, records.length, fileName)
+							this.showFileSaveOptions(csvContent, records.length, fileName)
 						} else if (res.tapIndex === 1) {
-							this.saveToDocuments(csvContent, records.length, fileName)
-						} else if (res.tapIndex === 2) {
-							this.saveToCustomLocation(csvContent, records.length, fileName)
-						} else if (res.tapIndex === 3) {
 							this.exportToClipboard(csvContent, records.length)
 						}
 					}
@@ -1408,6 +1596,24 @@
 					}
 				})
 				// #endif
+			},
+			
+			// 显示文件保存选项
+			showFileSaveOptions(csvContent, recordCount, fileName) {
+				uni.showActionSheet({
+					itemList: ['保存到公共存储', '保存到下载目录', '保存到应用文档', '自定义路径'],
+					success: (res) => {
+						if (res.tapIndex === 0) {
+							this.saveToDCIM(csvContent, recordCount, fileName)
+						} else if (res.tapIndex === 1) {
+							this.saveToDownloads(csvContent, recordCount, fileName)
+						} else if (res.tapIndex === 2) {
+							this.saveToPublicDocuments(csvContent, recordCount, fileName)
+						} else if (res.tapIndex === 3) {
+							this.saveToCustomLocation(csvContent, recordCount, fileName)
+						}
+					}
+				})
 			},
 			
 			saveToFile(csvContent, recordCount) {
@@ -1446,13 +1652,15 @@
 				// App平台选择保存位置
 				if (typeof plus !== 'undefined') {
 					uni.showActionSheet({
-						itemList: ['保存到下载目录', '保存到文档目录', '选择自定义目录'],
+						itemList: ['保存到下载目录', '保存到公共存储', '保存到应用文档', '选择自定义目录'],
 						success: (res) => {
 							if (res.tapIndex === 0) {
 								this.saveToDownloads(csvContent, recordCount, fileName)
 							} else if (res.tapIndex === 1) {
-								this.saveToDocuments(csvContent, recordCount, fileName)
+								this.saveToDCIM(csvContent, recordCount, fileName)
 							} else if (res.tapIndex === 2) {
+								this.saveToPublicDocuments(csvContent, recordCount, fileName)
+							} else if (res.tapIndex === 3) {
 								this.saveToCustomLocation(csvContent, recordCount, fileName)
 							}
 						}
@@ -1481,10 +1689,10 @@
 								console.log('写入器位置:', writer.position)
 								console.log('写入器长度:', writer.length)
 								uni.showModal({
-									title: '导出成功',
-									content: `文件已保存到下载目录：\n${fileName}\n\n共${recordCount}条记录\n文件大小：${writer.length}字节`,
+									title: '导出完成',
+									content: `文件已成功保存！\n\n位置：下载目录/${fileName}\n记录数：${recordCount} 条\n文件大小：${writer.length} 字节\n\n您可以通过文件管理器在下载文件夹中找到该文件。`,
 									showCancel: false,
-									confirmText: '知道了'
+									confirmText: '我知道了'
 								})
 							}
 							
@@ -1914,10 +2122,10 @@
 					data: csvContent,
 					success: () => {
 						uni.showModal({
-							title: '导出成功',
-							content: `由于平台限制，数据已复制到剪贴板\n\n共${recordCount}条记录\n\n您可以粘贴到任意文本编辑器中保存为CSV文件`,
+							title: '导出完成',
+							content: `数据已复制到剪贴板（共 ${recordCount} 条记录）\n\n由于平台限制，无法直接保存文件。您可以将数据粘贴到任意文本编辑器中保存为CSV文件。`,
 							showCancel: false,
-							confirmText: '知道了'
+							confirmText: '我知道了'
 						})
 					},
 					fail: () => {
@@ -1962,6 +2170,434 @@
 						confirmText: '知道了'
 					})
 				}
+			},
+			
+			// 保存到外部公共存储（兼容Android 10+）
+			saveToDCIM(csvContent, recordCount, fileName) {
+				console.log('=== 开始保存到外部公共存储 ===')
+				console.log('文件名:', fileName)
+				console.log('记录数量:', recordCount)
+				
+				// 首先检查存储权限
+				this.checkStoragePermission().then(() => {
+					// 直接使用 Android 原生 API 操作真正的公共目录
+					try {
+						const Environment = plus.android.importClass('android.os.Environment')
+						const File = plus.android.importClass('java.io.File')
+						const FileOutputStream = plus.android.importClass('java.io.FileOutputStream')
+						const OutputStreamWriter = plus.android.importClass('java.io.OutputStreamWriter')
+						
+						// 检查外部存储是否可用
+						const state = Environment.getExternalStorageState()
+						if (state !== Environment.MEDIA_MOUNTED) {
+							throw new Error('外部存储不可用')
+						}
+						
+						// 获取公共下载目录 - 这是真正的公共目录
+						let publicDownloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+						
+						// 检查是否成功获取下载目录
+						if (publicDownloadsDir === null || publicDownloadsDir === undefined) {
+							// 尝试备用方案：手动构建下载目录路径
+							const externalStorageDir = Environment.getExternalStorageDirectory()
+							if (externalStorageDir !== null) {
+								publicDownloadsDir = new File(externalStorageDir, 'Download')
+								console.log('使用备用下载目录路径:', publicDownloadsDir.getAbsolutePath())
+							} else {
+								throw new Error('无法获取任何外部存储目录，设备可能不支持')
+							}
+						} else {
+							console.log('公共下载目录:', publicDownloadsDir.getAbsolutePath())
+						}
+						
+						// 检查目录是否存在和可写
+						if (!publicDownloadsDir.exists()) {
+							// 尝试创建下载目录
+							const created = publicDownloadsDir.mkdirs()
+							if (!created) {
+								throw new Error('下载目录不存在且无法创建')
+							}
+						}
+						
+						if (!publicDownloadsDir.canWrite()) {
+							throw new Error('下载目录不可写，请检查权限')
+						}
+						
+						// 创建 AccountData 子目录
+						const accountDataDir = new File(publicDownloadsDir, 'AccountData')
+						if (!accountDataDir.exists()) {
+							const created = accountDataDir.mkdirs()
+							console.log('创建AccountData目录结果:', created)
+							if (!created) {
+								throw new Error('无法创建AccountData目录')
+							}
+						}
+						
+						// 创建文件
+						const csvFile = new File(accountDataDir, fileName)
+						const absolutePath = csvFile.getAbsolutePath()
+						console.log('目标文件完整路径:', absolutePath)
+						
+						// 检查文件是否可以创建
+						if (csvFile.exists()) {
+							csvFile.delete() // 删除已存在的文件
+						}
+						
+						// 写入文件内容
+						const fos = new FileOutputStream(csvFile)
+						const writer = new OutputStreamWriter(fos, 'UTF-8')
+						
+						// 添加 BOM 用于正确的 UTF-8 编码
+						const bom = '\ufeff'
+						const fullContent = bom + csvContent
+						
+						writer.write(fullContent)
+						writer.flush()
+						writer.close()
+						fos.close()
+						
+						// 获取文件大小
+						const fileSize = csvFile.length()
+						
+						console.log('文件写入完成，大小:', fileSize)
+						uni.showModal({
+							title: '导出成功',
+							content: `文件已保存到真正的公共下载目录：\n\n${absolutePath}\n\n共${recordCount}条记录\n文件大小：${fileSize}字节\n\n现在可以通过任何文件管理器在"下载"文件夹的"AccountData"子目录中找到该文件`,
+							showCancel: false,
+							confirmText: '知道了'
+						})
+						
+					} catch (error) {
+						console.error('原生文件操作失败:', error)
+						uni.showModal({
+							title: '保存失败',
+							content: `无法保存到公共目录：${error.message}\n\n将尝试其他方式保存`,
+							showCancel: true,
+							confirmText: '尝试其他方式',
+							cancelText: '取消',
+							success: (res) => {
+								if (res.confirm) {
+									// 降级处理
+									this.fallbackToPublicDownloads(csvContent, recordCount, fileName)
+								}
+							}
+						})
+					}
+				}).catch((err) => {
+					console.error('存储权限检查失败:', err)
+					uni.showModal({
+						title: '权限不足',
+						content: '需要存储权限才能保存到公共目录。请在应用设置中授予存储权限。',
+						showCancel: true,
+						confirmText: '去设置',
+						cancelText: '取消',
+						success: (res) => {
+							if (res.confirm) {
+								// 打开应用设置页面
+								const Intent = plus.android.importClass('android.content.Intent')
+								const Settings = plus.android.importClass('android.provider.Settings')
+								const Uri = plus.android.importClass('android.net.Uri')
+								const main = plus.android.runtimeMainActivity()
+								
+								const intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+								const uri = Uri.fromParts('package', main.getPackageName(), null)
+								intent.setData(uri)
+								main.startActivity(intent)
+							}
+						}
+					})
+				})
+			},
+			
+			// 检查存储权限
+			checkStoragePermission() {
+				return new Promise((resolve, reject) => {
+					const Context = plus.android.importClass('android.content.Context')
+					const PackageManager = plus.android.importClass('android.content.pm.PackageManager')
+					const Manifest = plus.android.importClass('android.Manifest')
+					const main = plus.android.runtimeMainActivity()
+					
+					// 检查写入外部存储权限
+					const writePermission = main.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+					const readPermission = main.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
+					
+					if (writePermission === PackageManager.PERMISSION_GRANTED && 
+						readPermission === PackageManager.PERMISSION_GRANTED) {
+						console.log('存储权限已授予')
+						resolve()
+					} else {
+						console.log('存储权限未授予，尝试请求权限')
+						// 请求权限
+						const ActivityCompat = plus.android.importClass('androidx.core.app.ActivityCompat')
+						ActivityCompat.requestPermissions(main, [
+							Manifest.permission.WRITE_EXTERNAL_STORAGE,
+							Manifest.permission.READ_EXTERNAL_STORAGE
+						], 1001)
+						
+						// 等待用户授权结果
+						setTimeout(() => {
+							const newWritePermission = main.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+							const newReadPermission = main.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
+							
+							if (newWritePermission === PackageManager.PERMISSION_GRANTED && 
+								newReadPermission === PackageManager.PERMISSION_GRANTED) {
+								resolve()
+							} else {
+								reject(new Error('用户未授予存储权限'))
+							}
+						}, 2000)
+					}
+				})
+			},
+			
+			// 创建公共目录
+			createPublicDirectory(targetPath, fileName, csvContent, recordCount) {
+				console.log('开始创建公共目录:', targetPath)
+				
+				// 使用 Android 原生文件操作来创建真正的公共目录
+				try {
+					const Environment = plus.android.importClass('android.os.Environment')
+					const File = plus.android.importClass('java.io.File')
+					const FileOutputStream = plus.android.importClass('java.io.FileOutputStream')
+					const OutputStreamWriter = plus.android.importClass('java.io.OutputStreamWriter')
+					
+					// 获取公共下载目录
+					let publicDownloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+					
+					// 检查是否成功获取下载目录
+					if (publicDownloadsDir === null || publicDownloadsDir === undefined) {
+						// 尝试备用方案：手动构建下载目录路径
+						const externalStorageDir = Environment.getExternalStorageDirectory()
+						if (externalStorageDir !== null) {
+							publicDownloadsDir = new File(externalStorageDir, 'Download')
+							console.log('使用备用下载目录路径:', publicDownloadsDir.getAbsolutePath())
+						} else {
+							throw new Error('无法获取任何外部存储目录')
+						}
+					} else {
+						console.log('公共下载目录:', publicDownloadsDir.getAbsolutePath())
+					}
+					
+					// 创建 AccountData 子目录
+					const accountDataDir = new File(publicDownloadsDir, 'AccountData')
+					if (!accountDataDir.exists()) {
+						const created = accountDataDir.mkdirs()
+						console.log('创建AccountData目录:', created)
+					}
+					
+					// 创建文件
+					const csvFile = new File(accountDataDir, fileName)
+					console.log('目标文件路径:', csvFile.getAbsolutePath())
+					
+					// 写入文件内容
+					const fos = new FileOutputStream(csvFile)
+					const writer = new OutputStreamWriter(fos, 'UTF-8')
+					
+					// 添加 BOM 用于正确的 UTF-8 编码
+					const bom = '\ufeff'
+					const fullContent = bom + csvContent
+					
+					writer.write(fullContent)
+					writer.flush()
+					writer.close()
+					fos.close()
+					
+					console.log('文件写入完成')
+					uni.showModal({
+						title: '导出成功',
+						content: `文件已保存到真正的公共下载目录：\n${csvFile.getAbsolutePath()}\n\n共${recordCount}条记录\n\n可通过任何文件管理器在"下载"文件夹的"AccountData"子目录中找到该文件`,
+						showCancel: false,
+						confirmText: '知道了'
+					})
+					
+				} catch (error) {
+					console.error('原生文件操作失败:', error)
+					// 降级处理
+					this.fallbackToPublicDownloads(csvContent, recordCount, fileName)
+				}
+			},
+			
+			// 降级到 plus.io.PUBLIC_DOWNLOADS
+			fallbackToPublicDownloads(csvContent, recordCount, fileName) {
+				console.log('降级使用 plus.io.PUBLIC_DOWNLOADS')
+				
+				// 使用plus.io.PUBLIC_DOWNLOADS，这是Android 10+推荐的公共目录
+				plus.io.requestFileSystem(plus.io.PUBLIC_DOWNLOADS, (fs) => {
+					console.log('获取公共下载目录文件系统成功')
+					
+					// 在下载目录创建AccountData子目录
+					fs.root.getDirectory('AccountData', {create: true}, (accountDataEntry) => {
+						console.log('创建AccountData目录成功:', accountDataEntry.fullPath)
+						
+						accountDataEntry.getFile(fileName, {create: true}, (fileEntry) => {
+							console.log('创建文件成功:', fileEntry.fullPath)
+							fileEntry.createWriter((writer) => {
+								console.log('创建写入器成功')
+								
+								writer.onwrite = (e) => {
+									console.log('文件写入完成')
+									uni.showModal({
+										title: '导出成功',
+										content: `文件已保存到：\n${fileEntry.fullPath}\n\n共${recordCount}条记录\n文件大小：${writer.length}字节\n\n请通过文件管理器查看，路径可能在：\n• /storage/emulated/0/Download/AccountData/\n• 或应用私有目录中`,
+										showCancel: false,
+										confirmText: '知道了'
+									})
+								}
+								
+								writer.onerror = (err) => {
+									console.error('写入失败:', err)
+									uni.showToast({
+										title: '文件写入失败',
+										icon: 'error'
+									})
+								}
+								
+								// 创建带BOM的UTF-8 CSV内容
+								const bom = '\ufeff'
+								const fullContent = bom + csvContent
+								console.log('开始写入数据...')
+								writer.write(fullContent)
+							}, (err) => {
+								console.error('创建写入器失败:', err)
+								uni.showToast({
+									title: '创建写入器失败',
+									icon: 'error'
+								})
+							})
+						}, (err) => {
+							console.error('创建文件失败:', err)
+							uni.showToast({
+								title: '创建文件失败',
+								icon: 'error'
+							})
+						})
+					}, (err) => {
+						console.error('创建AccountData目录失败:', err)
+						uni.showToast({
+							title: '创建目录失败',
+							icon: 'error'
+						})
+					})
+				}, (err) => {
+					console.error('获取公共存储失败:', err)
+					uni.showToast({
+						title: '获取公共存储失败',
+						icon: 'error'
+					})
+				})
+			},
+			
+			// 写入文件到指定的目录条目
+			writeFileToEntry(dirEntry, fileName, csvContent, recordCount, targetPath) {
+				dirEntry.getFile(fileName, {create: true}, (fileEntry) => {
+					console.log('创建文件成功:', fileEntry.fullPath)
+					fileEntry.createWriter((writer) => {
+						console.log('创建写入器成功')
+						
+						writer.onwrite = (e) => {
+							console.log('文件写入完成')
+							uni.showModal({
+								title: '导出成功',
+								content: `文件已保存到真实公共目录：\n${targetPath}${fileName}\n\n共${recordCount}条记录\n文件大小：${writer.length}字节\n\n可通过文件管理器的"下载"目录 > "AccountData"文件夹查看`,
+								showCancel: false,
+								confirmText: '知道了'
+							})
+						}
+						
+						writer.onerror = (err) => {
+							console.error('写入失败:', err)
+							uni.showToast({
+								title: '文件写入失败',
+								icon: 'error'
+							})
+						}
+						
+						// 创建带BOM的UTF-8 CSV内容
+						const bom = '\ufeff'
+						const fullContent = bom + csvContent
+						console.log('开始写入数据...')
+						writer.write(fullContent)
+					}, (err) => {
+						console.error('创建写入器失败:', err)
+						uni.showToast({
+							title: '创建写入器失败',
+							icon: 'error'
+						})
+					})
+				}, (err) => {
+					console.error('创建文件失败:', err)
+					uni.showToast({
+						title: '创建文件失败',
+						icon: 'error'
+					})
+				})
+			},
+			
+			// 保存到应用外部存储目录（兼容Android 10+）
+			saveToPublicDocuments(csvContent, recordCount, fileName) {
+				console.log('=== 开始保存到应用外部存储 ===')
+				console.log('文件名:', fileName)
+				console.log('记录数量:', recordCount)
+				
+				// 使用应用的外部存储目录，这在Android 10+中是允许的
+				plus.io.requestFileSystem(plus.io.PRIVATE_WWW, (fs) => {
+					console.log('获取应用存储成功，尝试访问外部目录')
+					
+					// 获取应用的外部文件目录
+					const externalPath = plus.io.convertLocalFileSystemURL("_documents/")
+					console.log('外部路径:', externalPath)
+					
+					plus.io.resolveLocalFileSystemURL(externalPath, (entry) => {
+						console.log('解析外部路径成功:', entry.fullPath)
+						
+						entry.getFile(fileName, {create: true}, (fileEntry) => {
+							console.log('创建文件成功:', fileEntry.fullPath)
+							fileEntry.createWriter((writer) => {
+								console.log('创建写入器成功')
+								
+								writer.onwrite = (e) => {
+									console.log('文件写入完成')
+									uni.showModal({
+										title: '导出成功',
+										content: `文件已保存到应用文档目录：\n${fileName}\n\n共${recordCount}条记录\n文件大小：${writer.length}字节\n\n可通过文件管理器的应用文档目录访问`,
+										showCancel: false,
+										confirmText: '知道了'
+									})
+								}
+								
+								writer.onerror = (err) => {
+									console.error('写入失败:', err)
+									uni.showToast({
+										title: '文件写入失败',
+										icon: 'error'
+									})
+								}
+								
+								// 创建带BOM的UTF-8 CSV内容
+								const bom = '\ufeff'
+								const fullContent = bom + csvContent
+								console.log('开始写入数据...')
+								writer.write(fullContent)
+							}, (err) => {
+								console.error('创建写入器失败:', err)
+								// 如果外部存储失败，回退到私有文档目录
+								this.saveToDocuments(csvContent, recordCount, fileName)
+							})
+						}, (err) => {
+							console.error('创建文件失败:', err)
+							// 回退到私有文档目录
+							this.saveToDocuments(csvContent, recordCount, fileName)
+						})
+					}, (err) => {
+						console.error('解析外部路径失败:', err)
+						// 回退到私有文档目录
+						this.saveToDocuments(csvContent, recordCount, fileName)
+					})
+				}, (err) => {
+					console.error('获取应用存储失败:', err)
+					// 回退到私有文档目录
+					this.saveToDocuments(csvContent, recordCount, fileName)
+				})
 			}
 		}
 	}

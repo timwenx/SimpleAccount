@@ -2,7 +2,7 @@
     "name" : "简账",
     "appid" : "__UNI__B5EBC6F",
     "description" : "一个自用记账APP",
-    "versionName" : "1.0.1",
+    "versionName" : "1.0.2",
     "versionCode" : "100",
     "transformPx" : false,
     /* 5+App特有相关 */
@@ -20,7 +20,9 @@
             "ignoreVersion" : true //true表示忽略版本检查提示框，HBuilderX1.9.0及以上版本支持  
         },
         /* 模块配置 */
-        "modules" : {},
+        "modules" : {
+            "Record" : {}
+        },
         /* 应用发布信息 */
         "distribute" : {
             /* android打包配置 */
@@ -40,7 +42,10 @@
                     "<uses-permission android:name=\"android.permission.WAKE_LOCK\"/>",
                     "<uses-permission android:name=\"android.permission.FLASHLIGHT\"/>",
                     "<uses-feature android:name=\"android.hardware.camera\"/>",
-                    "<uses-permission android:name=\"android.permission.WRITE_SETTINGS\"/>"
+                    "<uses-permission android:name=\"android.permission.WRITE_SETTINGS\"/>",
+                    "<uses-permission android:name=\"android.permission.READ_EXTERNAL_STORAGE\"/>",
+                    "<uses-permission android:name=\"android.permission.WRITE_EXTERNAL_STORAGE\"/>",
+                    "<uses-permission android:name=\"android.permission.MANAGE_EXTERNAL_STORAGE\"/>"
                 ]
             },
             /* ios打包配置 */
