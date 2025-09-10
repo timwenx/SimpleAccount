@@ -7,40 +7,87 @@
 		<!-- 顶部统计卡片 -->
 		<view class="summary-card">
 			<view class="card-decoration"></view>
-			<view class="summary-row">
-				<view class="summary-item" data-type="expense">
-					<view class="summary-icon">💸</view>
-					<text class="summary-label">本月支出</text>
-					<text class="summary-value expense">¥{{monthExpense}}</text>
+			
+			<!-- 时间范围显示 -->
+			<view class="time-range-header" @click="toggleTimeFilter">
+				<text class="time-range-text">{{getCurrentTimeRangeText()}}</text>
+				<view class="time-range-icon">📅</view>
+			</view>
+			
+			<!-- 主要信息区域 -->
+			<view class="main-info-section">
+				<view class="left-info">
+					<view class="expense-section">
+						<text class="expense-label">支出</text>
+						<view class="expense-icon">⊖</view>
+					</view>
+					<text class="main-amount">¥{{monthExpense}}</text>
+					<view class="sub-amounts">
+						<view class="amount-item">
+							<text class="amount-label">收入</text>
+							<text class="amount-value">¥{{monthIncome}}</text>
+						</view>
+						<view class="amount-item">
+							<text class="amount-label">结余</text>
+							<text class="amount-value" :class="monthBalance >= 0 ? 'positive' : 'negative'">¥{{monthBalance}}</text>
+						</view>
+					</view>
 				</view>
-				<view class="summary-item" data-type="income">
-					<view class="summary-icon">💰</view>
-					<text class="summary-label">本月收入</text>
-					<text class="summary-value income">¥{{monthIncome}}</text>
+				
+				<view class="right-info">
+					<view class="chat-bubble">
+						<text class="chat-text">来和我聊天记账吧~</text>
+						<view class="bubble-tail"></view>
+					</view>
+					<view class="avatar-container" @click="goToChat">
+						<view class="avatar">
+							<text class="avatar-emoji">🤖</text>
+						</view>
+					</view>
 				</view>
 			</view>
-			<view class="summary-row">
-				<view class="summary-item" data-type="balance">
-					<view class="summary-icon">💳</view>
-					<text class="summary-label">本月结余</text>
-					<text class="summary-value" :class="monthBalance >= 0 ? 'income' : 'expense'">¥{{monthBalance}}</text>
-				</view>
-				<view class="summary-item" data-type="today">
-					<view class="summary-icon">📅</view>
-					<text class="summary-label">今日支出</text>
-					<text class="summary-value expense">¥{{todayExpense}}</text>
+			
+			<!-- 预算进度区域 -->
+			<view class="budget-section">
+					<view class="progress-container">
+						<view class="progress-circle">
+							<view class="progress-ring" 
+								:style="{background: `conic-gradient(#4A90E2 0deg, #4A90E2 ${calculateBudgetInfo.progress * 3.6}deg, rgba(255,255,255,0.2) ${calculateBudgetInfo.progress * 3.6}deg, rgba(255,255,255,0.2) 360deg)`}">
+								<view class="progress-inner">
+									<text class="progress-text">{{ getBudgetProgressDisplayText() }}</text>
+								</view>
+							</view>
+						</view>
+					</view>				<view class="budget-details">
+					<view class="budget-item">
+						<text class="budget-label">本月总预算</text>
+						<text class="budget-value">¥{{calculateBudgetInfo.totalBudget}}</text>
+						<text class="budget-source">来自{{categoryBudgets.length}}个分类预算</text>
+					</view>
+					<view class="budget-item">
+						<text class="budget-label">月剩余</text>
+						<text class="budget-value positive">¥{{calculateBudgetInfo.remainingAmount.toFixed(2)}}</text>
+					</view>
+					<view class="budget-item">
+						<text class="budget-label">剩余日均</text>
+						<text class="budget-value">¥{{calculateBudgetInfo.dailyAverage.toFixed(2)}}</text>
+					</view>
 				</view>
 			</view>
-			<view class="summary-row">
-				<view class="summary-item" data-type="records">
-					<view class="summary-icon">📊</view>
-					<text class="summary-label">总记录数</text>
-					<text class="summary-value">{{totalRecords}}条</text>
+			
+			<!-- 其他统计信息 -->
+			<view class="other-stats">
+				<view class="stat-item">
+					<text class="stat-label">今日支出</text>
+					<text class="stat-value expense">¥{{todayExpense}}</text>
 				</view>
-				<view class="summary-item" data-type="average">
-					<view class="summary-icon">📈</view>
-					<text class="summary-label">平均日支出</text>
-					<text class="summary-value expense">¥{{avgDailyExpense}}</text>
+				<view class="stat-item">
+					<text class="stat-label">总记录数</text>
+					<text class="stat-value">{{totalRecords}}条</text>
+				</view>
+				<view class="stat-item">
+					<text class="stat-label">平均日支出</text>
+					<text class="stat-value expense">¥{{avgDailyExpense}}</text>
 				</view>
 			</view>
 		</view>
@@ -180,6 +227,16 @@
 				todayExpense: 0,
 				totalRecords: 0,
 				avgDailyExpense: 0,
+				// 预算相关 - 与预算管理页面保持一致
+				categoryBudgets: [], // 分类预算列表
+				currentMonthRecords: [], // 当前月份的记录
+				// 时间单位定义
+				timeUnits: [
+					{ key: 'day', name: '日', factor: 30 }, // 日预算 × 30 = 月预算
+					{ key: 'month', name: '月', factor: 1 }, // 月预算 × 1 = 月预算
+					{ key: 'quarter', name: '季', factor: 1/3 }, // 季预算 × 1/3 = 月预算
+					{ key: 'year', name: '年', factor: 1/12 } // 年预算 × 1/12 = 月预算
+				],
 				touchData: {}, // 存储每个item的触摸数据
 				// 分页相关
 				currentPage: 1,
@@ -188,7 +245,7 @@
 				isLoading: false,
 				// 筛选相关
 				timeOptions: ['全部时间', '今天', '本周', '本月', '本年', '自定义范围'],
-				selectedTimeIndex: 0,
+				selectedTimeIndex: 3, // 默认选择本月
 				customStartDate: '',
 				customEndDate: '',
 				typeOptions: ['全部类型', '支出', '收入'],
@@ -232,6 +289,64 @@
 				}
 			}
 		},
+		
+		computed: {
+			// 总预算 - 从各分类预算总和计算
+			totalBudget() {
+				return this.categoryBudgets.reduce((sum, budget) => {
+					// 将各种时间单位的预算转换为月预算后累加
+					const monthlyBudget = this.convertToMonthlyBudget(budget.budgetAmount, budget.timeUnit || 'month')
+					return sum + monthlyBudget
+				}, 0)
+			},
+			
+			// 已使用金额 - 与预算管理页面保持一致
+			usedAmount() {
+				const total = this.currentMonthRecords
+					.filter(record => record.type === 'expense')
+					.reduce((sum, record) => {
+						const amount = parseFloat(record.amount) || 0
+						return sum + amount
+					}, 0)
+				
+				return total
+			},
+			
+			// 剩余金额 - 与预算管理页面保持一致
+			remainingAmount() {
+				return this.totalBudget - this.usedAmount
+			},
+			
+			// 使用进度百分比 - 与预算管理页面保持一致
+			progressPercentage() {
+				if (this.totalBudget === 0) return 0
+				return Math.min((this.usedAmount / this.totalBudget) * 100, 100)
+			},
+			
+			// 计算预算信息
+			calculateBudgetInfo() {
+				// 计算月剩余天数
+				const now = new Date()
+				const year = now.getFullYear()
+				const month = now.getMonth()
+				const lastDay = new Date(year, month + 1, 0).getDate()
+				const currentDay = now.getDate()
+				const remainingDays = lastDay - currentDay + 1
+				
+				// 计算日均可花费
+				const dailyAverage = remainingDays > 0 ? this.remainingAmount / remainingDays : 0
+				
+				return {
+					totalBudget: this.totalBudget,
+					usedAmount: this.usedAmount,
+					remainingAmount: this.remainingAmount,
+					progress: this.progressPercentage,
+					remainingDays,
+					dailyAverage: Math.max(dailyAverage, 0)
+				}
+			}
+		},
+		
 		onLoad() {
 			this.loadData()
 		},
@@ -239,17 +354,59 @@
 			this.loadData()
 		},
 		methods: {
+			// 获取预算进度显示文本
+			getBudgetProgressDisplayText() {
+				const progress = this.calculateBudgetInfo.progress
+				if (progress >= 100) {
+					return '已用完'
+				} else {
+					return Math.round(progress) + '%'
+				}
+			},
+			
 			loadData() {
 				// 从本地存储加载数据
 				const records = uni.getStorageSync('records') || []
 				this.allRecords = records.sort((a, b) => new Date(b.time) - new Date(a.time))
 				
+				// 加载预算数据 - 与预算管理页面保持一致
+				this.loadBudgetData()
+				
+				// 加载当前月份的记录 - 与预算管理页面保持一致
+				this.loadCurrentMonthRecords()
+				
 				// 加载分类数据
 				this.loadCategories()
+				
+				// 默认筛选本月数据
+				this.selectedTimeIndex = 3 // 本月
 				
 				this.updateCategoryOptions()
 				this.filterRecords()
 				this.calculateMonthSummary()
+			},
+			
+			// 加载预算数据 - 与预算管理页面保持一致
+			loadBudgetData() {
+				const savedCategoryBudgets = uni.getStorageSync('categoryBudgets')
+				
+				if (savedCategoryBudgets && Array.isArray(savedCategoryBudgets)) {
+					this.categoryBudgets = savedCategoryBudgets
+				}
+			},
+			
+			// 加载当前月份的记录 - 与预算管理页面保持一致
+			loadCurrentMonthRecords() {
+				const allRecords = uni.getStorageSync('records') || []
+				
+				const currentDate = new Date()
+				const currentYear = currentDate.getFullYear()
+				const currentMonth = currentDate.getMonth()
+				
+				this.currentMonthRecords = allRecords.filter(record => {
+					const recordDate = new Date(record.time)
+					return recordDate.getFullYear() === currentYear && recordDate.getMonth() === currentMonth
+				})
 			},
 			
 			// 加载分类数据
@@ -391,8 +548,25 @@
 				if (this.selectedTimeIndex !== 5) {
 					this.customStartDate = ''
 					this.customEndDate = ''
+				} else {
+					// 如果选择自定义范围，弹出日期选择器
+					this.showCustomDatePicker()
 				}
 				this.filterRecords()
+			},
+			
+			// 显示自定义日期选择器
+			showCustomDatePicker() {
+				// 先选择开始日期
+				uni.showModal({
+					title: '选择时间范围',
+					content: '请先选择开始日期，然后选择结束日期',
+					showCancel: false,
+					success: () => {
+						// 可以在这里添加日期选择逻辑，或者让用户在筛选区域手动选择
+						// 由于uni-app的限制，这里主要是提示用户
+					}
+				})
 			},
 			
 			// 按日期分组记录
@@ -489,12 +663,20 @@
 			// 开始日期选择
 			onStartDateChange(e) {
 				this.customStartDate = e.detail.value
+				// 如果结束日期早于开始日期，自动调整结束日期
+				if (this.customEndDate && this.customEndDate < this.customStartDate) {
+					this.customEndDate = this.customStartDate
+				}
 				this.filterRecords()
 			},
 			
 			// 结束日期选择
 			onEndDateChange(e) {
 				this.customEndDate = e.detail.value
+				// 如果结束日期早于开始日期，自动调整开始日期
+				if (this.customStartDate && this.customEndDate < this.customStartDate) {
+					this.customStartDate = this.customEndDate
+				}
 				this.filterRecords()
 			},
 			
@@ -554,11 +736,130 @@
 				const expenseDaysCount = monthExpenseDays.size
 				this.avgDailyExpense = expenseDaysCount > 0 ? 
 					this.moneyCalculator.format(this.moneyCalculator.divide(monthExpense, expenseDaysCount)) : '0.00'
+				
+				// 不再需要单独计算预算信息，使用computed属性
+			},
+			
+			// 获取当前时间范围文本（根据筛选条件）
+			getCurrentTimeRangeText() {
+				switch(this.selectedTimeIndex) {
+					case 0: // 全部时间
+						return this.getCurrentMonthRange()
+					case 1: // 今天
+						const today = new Date()
+						return this.formatSingleDate(today)
+					case 2: // 本周
+						return this.getCurrentWeekRange()
+					case 3: // 本月
+						return this.getCurrentMonthRange()
+					case 4: // 本年
+						return this.getCurrentYearRange()
+					case 5: // 自定义范围
+						if (this.customStartDate && this.customEndDate) {
+							return this.formatCustomRange()
+						} else {
+							return '请选择时间范围'
+						}
+					default:
+						return this.getCurrentMonthRange()
+				}
+			},
+			
+			// 获取当前月份范围
+			getCurrentMonthRange() {
+				const now = new Date()
+				const year = now.getFullYear()
+				const month = now.getMonth()
+				
+				const firstDay = new Date(year, month, 1)
+				const lastDay = new Date(year, month + 1, 0)
+				
+				const formatDate = (date) => {
+					const y = date.getFullYear()
+					const m = String(date.getMonth() + 1).padStart(2, '0')
+					const d = String(date.getDate()).padStart(2, '0')
+					return `${y}年${m}月${d}日`
+				}
+				
+				return `${formatDate(firstDay)}-${formatDate(lastDay)}`
+			},
+			
+			// 获取本周范围
+			getCurrentWeekRange() {
+				const now = new Date()
+				const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+				const weekStart = new Date(today)
+				weekStart.setDate(today.getDate() - today.getDay())
+				const weekEnd = new Date(weekStart)
+				weekEnd.setDate(weekStart.getDate() + 6)
+				
+				const formatDate = (date) => {
+					const y = date.getFullYear()
+					const m = String(date.getMonth() + 1).padStart(2, '0')
+					const d = String(date.getDate()).padStart(2, '0')
+					return `${y}年${m}月${d}日`
+				}
+				
+				return `${formatDate(weekStart)}-${formatDate(weekEnd)}`
+			},
+			
+			// 获取本年范围
+			getCurrentYearRange() {
+				const now = new Date()
+				const year = now.getFullYear()
+				return `${year}年全年`
+			},
+			
+			// 格式化单个日期
+			formatSingleDate(date) {
+				const y = date.getFullYear()
+				const m = String(date.getMonth() + 1).padStart(2, '0')
+				const d = String(date.getDate()).padStart(2, '0')
+				return `${y}年${m}月${d}日 (今天)`
+			},
+			
+			// 格式化自定义范围
+			formatCustomRange() {
+				const startDate = new Date(this.customStartDate)
+				const endDate = new Date(this.customEndDate)
+				
+				const formatDate = (date) => {
+					const y = date.getFullYear()
+					const m = String(date.getMonth() + 1).padStart(2, '0')
+					const d = String(date.getDate()).padStart(2, '0')
+					return `${y}年${m}月${d}日`
+				}
+				
+				if (this.customStartDate === this.customEndDate) {
+					return formatDate(startDate)
+				} else {
+					return `${formatDate(startDate)}-${formatDate(endDate)}`
+				}
+			},
+			
+			// 切换时间筛选器
+			toggleTimeFilter() {
+				// 创建一个动作表，让用户选择时间范围
+				uni.showActionSheet({
+					itemList: this.timeOptions,
+					success: (res) => {
+						if (res.tapIndex !== this.selectedTimeIndex) {
+							this.selectedTimeIndex = res.tapIndex
+							this.onTimeChange({ detail: { value: res.tapIndex } })
+						}
+					}
+				})
 			},
 			
 			goToAdd() {
 				uni.navigateTo({
 					url: '/pages/add/add'
+				})
+			},
+			
+			goToChat() {
+				uni.switchTab({
+					url: '/pages/chat/chat'
 				})
 			},
 			
@@ -693,6 +994,100 @@
 						}
 					}
 				})
+			},
+			
+			// ============= 预算相关方法 (与budget-manage.vue保持一致) =============
+			
+			// 将不同时间单位的预算转换为月预算
+			convertToMonthlyBudget(amount, timeUnit) {
+				const unit = this.timeUnits.find(u => u.key === timeUnit) || this.timeUnits.find(u => u.key === 'month')
+				return amount * unit.factor
+			},
+			
+			// 获取用于比较当期支出的预算基准
+			getBudgetBaseline(amount, timeUnit) {
+				switch(timeUnit) {
+					case 'day':
+						// 日预算：当月天数 × 日预算
+						const currentDate = new Date()
+						const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate()
+						return amount * daysInMonth
+					case 'month':
+						// 月预算：直接使用
+						return amount
+					case 'quarter':
+						// 季预算：直接使用原始金额
+						return amount
+					case 'year':
+						// 年预算：直接使用原始金额
+						return amount
+					default:
+						return amount
+				}
+			},
+			
+			// 获取时间单位名称
+			getTimeUnitName(timeUnit) {
+				const unit = this.timeUnits.find(u => u.key === timeUnit)
+				return unit ? unit.name : '月'
+			},
+			
+			// 根据时间单位获取相应时间范围的记录
+			getRecordsByTimeUnit(timeUnit) {
+				const allRecords = uni.getStorageSync('records') || []
+				const currentDate = new Date()
+				
+				switch(timeUnit) {
+					case 'day':
+						// 日预算：本月所有记录（日累计）
+						return this.currentMonthRecords
+					
+					case 'month':
+						// 月预算：本月记录
+						return this.currentMonthRecords
+					
+					case 'quarter':
+						// 季预算：本季度记录（当前季度的3个月）
+						const currentYear = currentDate.getFullYear()
+						const currentMonth = currentDate.getMonth()
+						const quarterStartMonth = Math.floor(currentMonth / 3) * 3 // 0, 3, 6, 9
+						
+						return allRecords.filter(record => {
+							const recordDate = new Date(record.time)
+							const recordYear = recordDate.getFullYear()
+							const recordMonth = recordDate.getMonth()
+							
+							return recordYear === currentYear && 
+								   recordMonth >= quarterStartMonth && 
+								   recordMonth < quarterStartMonth + 3
+						})
+					
+					case 'year':
+						// 年预算：本年度记录
+						const yearStart = currentDate.getFullYear()
+						
+						return allRecords.filter(record => {
+							const recordDate = new Date(record.time)
+							return recordDate.getFullYear() === yearStart
+						})
+					
+					default:
+						return this.currentMonthRecords
+				}
+			},
+			
+			// 获取预算进度文本
+			getBudgetProgressText(spent, budget, timeUnit = 'month') {
+				const budgetBaseline = this.getBudgetBaseline(budget, timeUnit)
+				if (budgetBaseline === 0) return '0%'
+				
+				const percentage = (spent / budgetBaseline) * 100
+				
+				if (percentage >= 100) {
+					return '已用完'
+				} else {
+					return percentage.toFixed(1) + '%'
+				}
 			}
 		}
 	}
@@ -716,13 +1111,315 @@
 	.summary-card {
 		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 		border-radius: 20rpx;
-		padding: 40rpx 30rpx;
+		padding: 30rpx;
 		margin-bottom: 30rpx;
 		position: relative;
 		overflow: hidden;
 		box-shadow: 0 10rpx 30rpx rgba(102, 126, 234, 0.3);
 		width: 100%;
 		max-width: 100%;
+	}
+	
+	/* 时间范围头部 */
+	.time-range-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 25rpx;
+		background: rgba(255, 255, 255, 0.15);
+		padding: 15rpx 20rpx;
+		border-radius: 25rpx;
+		backdrop-filter: blur(10rpx);
+		transition: all 0.3s ease;
+		cursor: pointer;
+	}
+	
+	.time-range-header:active {
+		transform: scale(0.98);
+		background: rgba(255, 255, 255, 0.2);
+	}
+	
+	.time-range-text {
+		color: white;
+		font-size: 24rpx;
+		font-weight: 500;
+		text-shadow: 0 1rpx 2rpx rgba(0,0,0,0.1);
+	}
+	
+	.time-range-icon {
+		width: 30rpx;
+		height: 30rpx;
+		border-radius: 50%;
+		background: rgba(255, 255, 255, 0.2);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: white;
+		font-size: 16rpx;
+		transition: all 0.3s ease;
+	}
+	
+	.time-range-header:active .time-range-icon {
+		background: rgba(255, 255, 255, 0.3);
+		transform: scale(1.1);
+	}
+	
+	/* 主要信息区域 */
+	.main-info-section {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		margin-bottom: 30rpx;
+	}
+	
+	.left-info {
+		flex: 1;
+		margin-right: 20rpx;
+	}
+	
+	.expense-section {
+		display: flex;
+		align-items: center;
+		margin-bottom: 10rpx;
+	}
+	
+	.expense-label {
+		color: #FFB3B3;
+		font-size: 28rpx;
+		margin-right: 10rpx;
+	}
+	
+	.expense-icon {
+		width: 35rpx;
+		height: 35rpx;
+		background: #FF6B6B;
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: white;
+		font-size: 20rpx;
+		font-weight: bold;
+	}
+	
+	.main-amount {
+		color: white;
+		font-size: 48rpx;
+		font-weight: bold;
+		margin-bottom: 20rpx;
+		text-shadow: 0 2rpx 4rpx rgba(0,0,0,0.2);
+	}
+	
+	.sub-amounts {
+		display: flex;
+		gap: 30rpx;
+	}
+	
+	.amount-item {
+		display: flex;
+		flex-direction: column;
+	}
+	
+	.amount-label {
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 22rpx;
+		margin-bottom: 5rpx;
+	}
+	
+	.amount-value {
+		color: white;
+		font-size: 26rpx;
+		font-weight: 500;
+	}
+	
+	.amount-value.positive {
+		color: #B3FFD9;
+	}
+	
+	.amount-value.negative {
+		color: #FFB3B3;
+	}
+	
+	/* 右侧聊天区域 */
+	.right-info {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		position: relative;
+	}
+	
+	.chat-bubble {
+		background: rgba(255, 255, 255, 0.9);
+		padding: 15rpx 20rpx;
+		border-radius: 20rpx;
+		margin-bottom: 15rpx;
+		position: relative;
+		box-shadow: 0 4rpx 15rpx rgba(0,0,0,0.1);
+		max-width: 200rpx;
+	}
+	
+	.chat-text {
+		color: #333;
+		font-size: 22rpx;
+		line-height: 1.4;
+	}
+	
+	.bubble-tail {
+		position: absolute;
+		bottom: -8rpx;
+		left: 50%;
+		transform: translateX(-50%);
+		width: 0;
+		height: 0;
+		border-left: 10rpx solid transparent;
+		border-right: 10rpx solid transparent;
+		border-top: 10rpx solid rgba(255, 255, 255, 0.9);
+	}
+	
+	.avatar-container {
+		position: relative;
+	}
+	
+	.avatar {
+		width: 80rpx;
+		height: 80rpx;
+		border-radius: 50%;
+		background: linear-gradient(45deg, #FFD93D, #FF6B6B);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		box-shadow: 0 6rpx 20rpx rgba(255, 107, 107, 0.3);
+		border: 4rpx solid rgba(255, 255, 255, 0.3);
+		transition: all 0.3s ease;
+	}
+	
+	.avatar:active {
+		transform: scale(0.95);
+	}
+	
+	.avatar-emoji {
+		font-size: 35rpx;
+	}
+	
+	/* 预算进度区域 */
+	.budget-section {
+		display: flex;
+		align-items: center;
+		margin-bottom: 25rpx;
+		background: rgba(255, 255, 255, 0.1);
+		padding: 25rpx;
+		border-radius: 20rpx;
+		backdrop-filter: blur(10rpx);
+	}
+	
+	.progress-container {
+		margin-right: 30rpx;
+	}
+	
+	.progress-circle {
+		width: 120rpx;
+		height: 120rpx;
+		position: relative;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	
+	.progress-ring {
+		width: 100%;
+		height: 100%;
+		border-radius: 50%;
+		padding: 8rpx;
+		box-sizing: border-box;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	
+	.progress-inner {
+		width: 80rpx;
+		height: 80rpx;
+		border-radius: 50%;
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.2);
+	}
+	
+	.progress-text {
+		color: white;
+		font-size: 22rpx;
+		font-weight: bold;
+		text-shadow: 0 1rpx 2rpx rgba(0,0,0,0.3);
+	}
+	
+	.budget-details {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 12rpx;
+	}
+	
+	.budget-item {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+	
+	.budget-label {
+		color: rgba(255, 255, 255, 0.8);
+		font-size: 24rpx;
+	}
+	
+	.budget-value {
+		color: white;
+		font-size: 26rpx;
+		font-weight: 500;
+	}
+	
+	.budget-value.positive {
+		color: #B3FFD9;
+	}
+	
+	.budget-source {
+		font-size: 18rpx;
+		color: rgba(255, 255, 255, 0.6);
+		margin-top: 3rpx;
+		display: block;
+	}
+	
+	/* 其他统计信息 */
+	.other-stats {
+		display: flex;
+		justify-content: space-between;
+		background: rgba(255, 255, 255, 0.08);
+		padding: 20rpx;
+		border-radius: 15rpx;
+		backdrop-filter: blur(10rpx);
+	}
+	
+	.stat-item {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		flex: 1;
+	}
+	
+	.stat-label {
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 22rpx;
+		margin-bottom: 8rpx;
+	}
+	
+	.stat-value {
+		color: white;
+		font-size: 26rpx;
+		font-weight: 500;
+	}
+	
+	.stat-value.expense {
+		color: #FFB3B3;
 	}
 	
 	.card-decoration {
@@ -745,100 +1442,6 @@
 		height: 80rpx;
 		background: rgba(255, 255, 255, 0.05);
 		border-radius: 50%;
-	}
-	
-	.summary-row {
-		display: flex;
-		justify-content: space-between;
-		margin-bottom: 20rpx;
-		position: relative;
-		z-index: 1;
-		width: 100%;
-		box-sizing: border-box;
-	}
-	
-	.summary-row:last-child {
-		margin-bottom: 0;
-	}
-	
-	.summary-item {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		flex: 1;
-		min-width: 0;
-		padding: 15rpx;
-		border-radius: 15rpx;
-		background: rgba(255, 255, 255, 0.08);
-		margin: 0 8rpx;
-		transition: all 0.3s ease;
-		backdrop-filter: blur(10rpx);
-		position: relative;
-		overflow: hidden;
-		box-sizing: border-box;
-	}
-	
-	.summary-item:first-child {
-		margin-left: 0;
-	}
-	
-	.summary-item:last-child {
-		margin-right: 0;
-	}
-	
-	.summary-item::before {
-		content: '';
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, transparent 100%);
-		pointer-events: none;
-	}
-	
-	.summary-item:active {
-		transform: scale(0.95);
-		background: rgba(255, 255, 255, 0.15);
-	}
-	
-	.summary-icon {
-		font-size: 32rpx;
-		margin-bottom: 8rpx;
-		filter: drop-shadow(0 2rpx 4rpx rgba(0,0,0,0.1));
-	}
-	
-	.summary-label {
-		color: rgba(255, 255, 255, 0.8);
-		font-size: 24rpx;
-		margin-bottom: 8rpx;
-		font-weight: 500;
-		text-shadow: 0 1rpx 2rpx rgba(0,0,0,0.1);
-		text-align: center;
-		word-wrap: break-word;
-		overflow-wrap: break-word;
-	}
-	
-	.summary-value {
-		color: white;
-		font-size: 32rpx;
-		font-weight: bold;
-		text-shadow: 0 2rpx 4rpx rgba(0,0,0,0.2);
-		letter-spacing: 0.5rpx;
-		text-align: center;
-		word-wrap: break-word;
-		overflow-wrap: break-word;
-		max-width: 100%;
-	}
-	
-	.summary-value.expense {
-		color: #FFE5E5;
-		text-shadow: 0 2rpx 4rpx rgba(255, 107, 107, 0.3);
-	}
-	
-	.summary-value.income {
-		color: #E5FFF9;
-		text-shadow: 0 2rpx 4rpx rgba(78, 205, 196, 0.3);
 	}
 	
 	.quick-add {

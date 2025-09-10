@@ -59,6 +59,12 @@
 			"style": {
 				"navigationBarTitleText": "智能记账"
 			}
+		},
+		{
+			"path": "pages/budget-manage/budget-manage",
+			"style": {
+				"navigationBarTitleText": "预算管理"
+			}
 		}
 	],
 	"globalStyle": {
