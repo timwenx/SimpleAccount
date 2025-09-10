@@ -652,7 +652,7 @@
 				if (!messageText) {
 					this.inputText = ''
 				}
-				
+				this.loadAIConfig()
 				if (!this.aiConfig) {
 					this.addMessage('assistant', '抱歉，AI配置未找到，请在设置中重新配置')
 					return
