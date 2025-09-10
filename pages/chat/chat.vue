@@ -184,6 +184,67 @@
 		},
 		
 		methods: {
+			// 申请麦克风权限
+			async requestMicrophonePermission() {
+				return new Promise((resolve, reject) => {
+					// 检查是否支持权限申请API
+					if (uni.authorize) {
+						uni.authorize({
+							scope: 'scope.record',
+							success: () => {
+								console.log('麦克风权限获取成功')
+								resolve()
+							},
+							fail: (error) => {
+								console.log('麦克风权限获取失败:', error)
+								// 权限被拒绝，引导用户手动开启
+								reject(new Error('permission_denied'))
+							}
+						})
+					} else if (uni.getSetting && uni.authorize) {
+						// 先检查当前权限状态
+						uni.getSetting({
+							success: (res) => {
+								if (res.authSetting['scope.record']) {
+									// 已有权限
+									resolve()
+								} else if (res.authSetting['scope.record'] === false) {
+									// 权限被拒绝，需要引导用户手动开启
+									reject(new Error('permission_denied'))
+								} else {
+									// 尚未授权，主动申请
+									uni.authorize({
+										scope: 'scope.record',
+										success: () => {
+											resolve()
+										},
+										fail: () => {
+											reject(new Error('permission_denied'))
+										}
+									})
+								}
+							},
+							fail: () => {
+								// 降级处理，直接尝试申请权限
+								uni.authorize({
+									scope: 'scope.record',
+									success: () => {
+										resolve()
+									},
+									fail: () => {
+										reject(new Error('permission_denied'))
+									}
+								})
+							}
+						})
+					} else {
+						// 在不支持权限API的环境中，直接通过
+						console.log('当前环境不支持权限检查，直接通过')
+						resolve()
+					}
+				})
+			},
+			
 			// 切换输入模式
 			toggleInputMode() {
 				this.isVoiceMode = !this.isVoiceMode
@@ -195,7 +256,47 @@
 			},
 			
 			// 开始语音录制
-			startVoiceRecording() {
+			async startVoiceRecording() {
+				// 首先申请麦克风权限
+				try {
+					await this.requestMicrophonePermission()
+				} catch (error) {
+					let title = '需要麦克风权限'
+					let content = '使用语音记账功能需要麦克风权限'
+					
+					if (error.message === 'permission_denied') {
+						title = '麦克风权限被拒绝'
+						content = '检测到麦克风权限被拒绝，请手动开启权限后重试'
+					}
+					
+					uni.showModal({
+						title: title,
+						content: content,
+						confirmText: '了解',
+						showCancel: false,
+						success: () => {
+							// 显示操作指引
+							const systemInfo = uni.getSystemInfoSync()
+							let guide = ''
+							
+							if (systemInfo.platform === 'ios') {
+								guide = 'iOS用户：设置 → 隐私与安全 → 麦克风 → 找到本应用并开启'
+							} else if (systemInfo.platform === 'android') {
+								guide = 'Android用户：设置 → 应用管理 → 本应用 → 权限管理 → 开启麦克风权限'
+							} else {
+								guide = '请在系统设置中为本应用开启麦克风权限'
+							}
+							
+							uni.showToast({
+								title: guide,
+								icon: 'none',
+								duration: 4000
+							})
+						}
+					})
+					return
+				}
+				
 				if (!this.voiceConfig) {
 					uni.showModal({
 						title: '需要配置语音识别',
