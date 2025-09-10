@@ -142,6 +142,7 @@ pages/
 - 支持多种识别模型选择
 - 可开启标点符号、数字转换等功能
 - 内置演示模式，无需配置即可体验
+- 🔗 [火山引擎控制台 - 语音识别服务](https://console.volcengine.com/ark/region:ark+cn-beijing/tts/recordingRecognition)
 
 ### 数据统计
 - 月度/年度收支统计
