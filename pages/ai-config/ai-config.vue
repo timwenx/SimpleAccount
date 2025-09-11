@@ -136,8 +136,8 @@
    - 绝对禁止使用markdown代码块（如\`\`\`json\`\`\`）包裹JSON
    - 绝对禁止在JSON前后添加任何说明文字
    - 单笔记录：只返回 {"type": "expense/income", "amount": "金额", "category": "分类", "note": "备注", "time": "时间描述"}
-   - 多笔记录：只返回 [{"type": "expense", "amount": "20", "category": "餐饮", "note": "早餐", "time": "今天早上"}, ...]
-   - 时间描述：如"今天早上"、"昨天中午"、"前天晚上"等，如果没有明确时间则设为"刚才"
+   - 多笔记录：只返回 [{"type": "expense", "amount": "20", "category": "餐饮", "note": "早餐", "time": "2025-09-11 18:00:00"}, ...]
+   - 时间描述：如"今天早上则为xxxx-xx-xx 08:00:00"、"中午 xxxx-xx-xx 12:00:00"、"下班或者比如昨天赚了等，可以推荐一个下班时间(xxxx-xx-xx 18:00:00)或结合问题来给一个推荐的时间"等，如果没有明确时间则设为"刚才"
    - JSON字符串不得包含转义字符，直接使用标准JSON格式
 
 4. 分类匹配规则：
@@ -149,7 +149,7 @@
 5. 示例：
    现有分类：[餐饮, 交通, 购物]
    输入："今天早上早餐20元，打车15元"
-   输出：[{"type": "expense", "amount": "20", "category": "餐饮", "note": "早餐", "time": "今天早上"}, {"type": "expense", "amount": "15", "category": "交通", "note": "打车", "time": "今天早上"}]
+   输出：[{"type": "expense", "amount": "20", "category": "餐饮", "note": "早餐", "time": "xxxx-xx-xx 08:00:00"}, {"type": "expense", "amount": "15", "category": "交通", "note": "打车", "time": "xxxx-xx-xx 08:00:00"}]
 
 6. 当用户询问财务相关问题时，提供专业的理财建议
 
