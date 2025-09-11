@@ -88,7 +88,7 @@
 				</view>
 			</view>
 			<!-- 滚动锚点 -->
-			<view id="bottomAnchor"></view>
+  			<view id="bottomAnchor" style="height:1px;"></view>
 		</scroll-view>
 		
 		<!-- 固定在底部的输入区域 -->
@@ -1271,20 +1271,15 @@
 			// 滚动到底部
 			scrollToBottom() {
 				this.$nextTick(() => {
-					const query = uni.createSelectorQuery().in(this)
-					query.select('#bottomAnchor').boundingClientRect((rect) => {
-						if (rect) {
-							// 兼容H5和小程序
-							if (typeof this.scrollTop !== 'undefined') {
-								this.scrollTop = rect.top
-							}
-							// H5下可用scrollIntoView
-							const anchor = document.getElementById && document.getElementById('bottomAnchor')
-							if (anchor && anchor.scrollIntoView) {
-								anchor.scrollIntoView({behavior: 'smooth'})
-							}
-						}
-					}).exec()
+					// #ifdef H5
+					const anchor = document.getElementById && document.getElementById('bottomAnchor')
+					if (anchor && anchor.scrollIntoView) {
+						anchor.scrollIntoView({behavior: 'smooth'})
+					}
+					// #endif
+					// #ifndef H5
+					this.scrollTop = (this.scrollTop || 99999) + 1
+					// #endif
 				})
 			}
 		}
