@@ -60,17 +60,17 @@
 						</view>
 					</view>				<view class="budget-details">
 					<view class="budget-item">
-						<text class="budget-label">本月总预算</text>
+						<text class="budget-label">总预算</text>
 						<text class="budget-value">¥{{calculateBudgetInfo.totalBudget}}</text>
 						<text class="budget-source">来自{{categoryBudgets.length}}个分类预算</text>
 					</view>
 					<view class="budget-item">
-						<text class="budget-label">月剩余</text>
-						<text class="budget-value positive">¥{{calculateBudgetInfo.remainingAmount.toFixed(2)}}</text>
+						<text class="budget-label">已使用预算</text>
+						<text class="budget-value">¥{{calculateBudgetInfo.usedAmount.toFixed(2)}}</text>
 					</view>
 					<view class="budget-item">
-						<text class="budget-label">剩余日均</text>
-						<text class="budget-value">¥{{calculateBudgetInfo.dailyAverage.toFixed(2)}}</text>
+						<text class="budget-label">剩余预算</text>
+						<text class="budget-value positive">¥{{calculateBudgetInfo.remainingAmount.toFixed(2)}}</text>
 					</view>
 				</view>
 			</view>
@@ -237,6 +237,7 @@
 					{ key: 'quarter', name: '季', factor: 1/3 }, // 季预算 × 1/3 = 月预算
 					{ key: 'year', name: '年', factor: 1/12 } // 年预算 × 1/12 = 月预算
 				],
+				monthNames: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
 				touchData: {}, // 存储每个item的触摸数据
 				// 分页相关
 				currentPage: 1,
@@ -291,24 +292,22 @@
 		},
 		
 		computed: {
-			// 总预算 - 从各分类预算总和计算
+			// 总预算 - 直接计算各分类预算的总和（与预算管理页面保持一致）
 			totalBudget() {
 				return this.categoryBudgets.reduce((sum, budget) => {
-					// 将各种时间单位的预算转换为月预算后累加
-					const monthlyBudget = this.convertToMonthlyBudget(budget.budgetAmount, budget.timeUnit || 'month')
-					return sum + monthlyBudget
+					// 直接累加预算金额，不进行时间单位转换
+					return sum + (budget.budgetAmount || 0)
 				}, 0)
 			},
 			
-			// 已使用金额 - 与预算管理页面保持一致
+			// 已使用金额 - 统一使用分类预算的计算方式
 			usedAmount() {
-				const total = this.currentMonthRecords
-					.filter(record => record.type === 'expense')
-					.reduce((sum, record) => {
-						const amount = parseFloat(record.amount) || 0
-						return sum + amount
-					}, 0)
-				
+				// 直接使用各分类预算的已使用金额总和
+				// 这样确保首页和预算管理页面的计算方式完全一致
+				const total = this.categoryBudgets.reduce((sum, budget) => {
+					return sum + (budget.spentAmount || 0)
+				}, 0)
+				console.log('首页计算已使用金额(统一方式):', total)
 				return total
 			},
 			
@@ -323,9 +322,9 @@
 				return Math.min((this.usedAmount / this.totalBudget) * 100, 100)
 			},
 			
-			// 计算预算信息
+			// 计算预算信息（始终基于本月数据，不受筛选条件影响）
 			calculateBudgetInfo() {
-				// 计算月剩余天数
+				// 计算本月剩余天数
 				const now = new Date()
 				const year = now.getFullYear()
 				const month = now.getMonth()
@@ -374,6 +373,9 @@
 				
 				// 加载当前月份的记录 - 与预算管理页面保持一致
 				this.loadCurrentMonthRecords()
+				
+				// 计算各分类的支出 - 与预算管理页面保持一致
+				this.calculateCategorySpending()
 				
 				// 加载分类数据
 				this.loadCategories()
@@ -505,6 +507,9 @@
 				
 				// 按日期分组并分页显示
 				this.groupRecordsByDate()
+				
+				// 重新计算统计数据（包括预算数据）
+				this.calculateMonthSummary()
 			},
 			
 			// 按时间筛选
@@ -695,50 +700,72 @@
 			},
 			
 			calculateMonthSummary() {
-				const now = new Date()
-				const currentYear = now.getFullYear()
-				const currentMonth = now.getMonth()
-				const today = new Date(currentYear, currentMonth, now.getDate())
+				// 根据筛选条件获取记录
+				let filteredRecords = this.allRecords
 				
-				const records = uni.getStorageSync('records') || []
-				let monthExpense = 0
-				let monthIncome = 0
+				// 应用时间筛选
+				if (this.selectedTimeIndex > 0) {
+					filteredRecords = this.filterByTime(filteredRecords)
+				}
+				
+				// 应用类型筛选
+				if (this.selectedTypeIndex > 0) {
+					const type = this.selectedTypeIndex === 1 ? 'expense' : 'income'
+					filteredRecords = filteredRecords.filter(record => record.type === type)
+				}
+				
+				// 应用分类筛选
+				if (this.selectedCategoryIndex > 0) {
+					const categoryName = this.categoryOptions[this.selectedCategoryIndex]
+					filteredRecords = filteredRecords.filter(record => record.categoryName === categoryName)
+				}
+				
+				let filteredExpense = 0
+				let filteredIncome = 0
 				let todayExpense = 0
-				let monthExpenseDays = new Set() // 记录本月有支出的天数
+				let expenseDays = new Set() // 记录有支出的天数
 				
-				records.forEach(record => {
+				// 计算筛选后的统计数据
+				filteredRecords.forEach(record => {
 					const recordDate = new Date(record.time)
 					const recordDay = new Date(recordDate.getFullYear(), recordDate.getMonth(), recordDate.getDate())
 					
-					// 本月统计
-					if (recordDate.getFullYear() === currentYear && recordDate.getMonth() === currentMonth) {
-						if (record.type === 'expense') {
-							monthExpense = this.moneyCalculator.add(monthExpense, parseFloat(record.amount))
-							monthExpenseDays.add(recordDate.getDate())
-						} else {
-							monthIncome = this.moneyCalculator.add(monthIncome, parseFloat(record.amount))
-						}
+					if (record.type === 'expense') {
+						filteredExpense = this.moneyCalculator.add(filteredExpense, parseFloat(record.amount))
+						expenseDays.add(recordDay.getTime()) // 使用时间戳确保唯一性
+					} else {
+						filteredIncome = this.moneyCalculator.add(filteredIncome, parseFloat(record.amount))
 					}
-					
-					// 今日统计
+				})
+				
+				// 计算今日支出（基于原始数据，不受筛选影响）
+				const now = new Date()
+				const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+				this.allRecords.forEach(record => {
+					const recordDate = new Date(record.time)
+					const recordDay = new Date(recordDate.getFullYear(), recordDate.getMonth(), recordDate.getDate())
 					if (recordDay.getTime() === today.getTime() && record.type === 'expense') {
 						todayExpense = this.moneyCalculator.add(todayExpense, parseFloat(record.amount))
 					}
 				})
 				
-				this.monthExpense = this.moneyCalculator.format(monthExpense)
-				this.monthIncome = this.moneyCalculator.format(monthIncome)
-				this.monthBalance = this.moneyCalculator.format(this.moneyCalculator.subtract(monthIncome, monthExpense))
+				this.monthExpense = this.moneyCalculator.format(filteredExpense)
+				this.monthIncome = this.moneyCalculator.format(filteredIncome)
+				this.monthBalance = this.moneyCalculator.format(this.moneyCalculator.subtract(filteredIncome, filteredExpense))
 				this.todayExpense = this.moneyCalculator.format(todayExpense)
-				this.totalRecords = records.length
+				this.totalRecords = filteredRecords.length
 				
-				// 计算平均日支出（基于有支出记录的天数）
-				const expenseDaysCount = monthExpenseDays.size
+				// 计算平均日支出（基于筛选后的数据）
+				const expenseDaysCount = expenseDays.size
 				this.avgDailyExpense = expenseDaysCount > 0 ? 
-					this.moneyCalculator.format(this.moneyCalculator.divide(monthExpense, expenseDaysCount)) : '0.00'
+					this.moneyCalculator.format(this.moneyCalculator.divide(filteredExpense, expenseDaysCount)) : '0.00'
 				
-				// 不再需要单独计算预算信息，使用computed属性
-			},
+				// 预算进度区域不受筛选条件影响，始终使用本月数据
+				// 重新加载本月记录并计算预算数据
+				this.loadCurrentMonthRecords()
+				this.calculateCategorySpending()
+		},
+		
 			
 			// 获取当前时间范围文本（根据筛选条件）
 			getCurrentTimeRangeText() {
@@ -1026,16 +1053,54 @@
 				}
 			},
 			
-			// 获取时间单位名称
-			getTimeUnitName(timeUnit) {
-				const unit = this.timeUnits.find(u => u.key === timeUnit)
-				return unit ? unit.name : '月'
+			// 计算各分类的支出 - 与预算管理页面保持一致
+			calculateCategorySpending() {
+				console.log('首页开始计算分类支出，预算分类数量:', this.categoryBudgets.length)
+				
+				// 为每个预算分类计算相应时间范围的支出
+				this.categoryBudgets.forEach(budget => {
+					// 确保有时间单位，默认为月
+					if (!budget.timeUnit) {
+						budget.timeUnit = 'month'
+					}
+					
+					let categorySpending = 0
+					
+					// 根据新的计算规则计算已使用金额
+					if (budget.timeUnit === 'month') {
+						// 月度分类：单月支出
+						const timeRangeRecords = this.getRecordsByTimeUnit(budget.timeUnit)
+						categorySpending = this.calculateCategorySpendingFromRecords(timeRangeRecords, budget)
+					} else if (budget.timeUnit === 'quarter') {
+						// 季度分类：从开始月份算起这个季度的整个支出
+						const timeRangeRecords = this.getRecordsByTimeUnit(budget.timeUnit, budget.quarterStartMonth)
+						categorySpending = this.calculateCategorySpendingFromRecords(timeRangeRecords, budget)
+					} else if (budget.timeUnit === 'year') {
+						// 年度分类：这一年的年度支出(1月1日开始)
+						const timeRangeRecords = this.getRecordsByTimeUnit(budget.timeUnit)
+						categorySpending = this.calculateCategorySpendingFromRecords(timeRangeRecords, budget)
+					} else {
+						// 其他类型（如日）
+						const timeRangeRecords = this.getRecordsByTimeUnit(budget.timeUnit)
+						categorySpending = this.calculateCategorySpendingFromRecords(timeRangeRecords, budget)
+					}
+					
+					const timeUnitName = this.getTimeUnitName(budget.timeUnit)
+					const timeRangeDesc = this.getTimeRangeDesc(budget.timeUnit, budget.quarterStartMonth)
+					console.log(`首页分类 ${budget.categoryName} ${timeRangeDesc} ${timeUnitName}支出:`, categorySpending)
+					budget.spentAmount = categorySpending
+				})
+				
+				// 保存更新后的数据 - 与预算管理页面保持一致
+				this.saveCategoryBudgets()
 			},
 			
-			// 根据时间单位获取相应时间范围的记录
-			getRecordsByTimeUnit(timeUnit) {
+			// 根据时间单位获取相应时间范围的记录 - 与预算管理页面保持一致
+			getRecordsByTimeUnit(timeUnit, quarterStartMonth = null) {
 				const allRecords = uni.getStorageSync('records') || []
 				const currentDate = new Date()
+				const currentYear = currentDate.getFullYear()
+				const currentMonth = currentDate.getMonth() + 1 // 1-12
 				
 				switch(timeUnit) {
 					case 'day':
@@ -1043,38 +1108,153 @@
 						return this.currentMonthRecords
 					
 					case 'month':
-						// 月预算：本月记录
-						return this.currentMonthRecords
+						// 月分类：从每个月1号开始计算支出
+						return allRecords.filter(record => {
+							const recordDate = new Date(record.time)
+							const recordYear = recordDate.getFullYear()
+							const recordMonth = recordDate.getMonth() + 1
+							
+							// 只统计当前年月的记录
+							return recordYear === currentYear && recordMonth === currentMonth
+						})
 					
 					case 'quarter':
-						// 季预算：本季度记录（当前季度的3个月）
-						const currentYear = currentDate.getFullYear()
-						const currentMonth = currentDate.getMonth()
-						const quarterStartMonth = Math.floor(currentMonth / 3) * 3 // 0, 3, 6, 9
+						// 季分类：连续季度计算，从开始月份开始每3个月为一个季度
+						if (!quarterStartMonth) {
+							// 如果没有指定开始月份，使用当前月份作为开始月份
+							quarterStartMonth = currentMonth
+						}
+						
+						// 计算当前月份属于第几个季度（从开始月份算起）
+						let quarterNumber = 0
+						if (currentMonth >= quarterStartMonth) {
+							// 同一年内
+							quarterNumber = Math.floor((currentMonth - quarterStartMonth) / 3)
+						} else {
+							// 跨年情况
+							quarterNumber = Math.floor((12 - quarterStartMonth + currentMonth) / 3)
+						}
+						
+						// 计算当前季度对应的3个月
+						const currentQuarterStartMonth = (quarterStartMonth + quarterNumber * 3 - 1) % 12 + 1
+						const month1 = currentQuarterStartMonth
+						const month2 = currentQuarterStartMonth + 1 > 12 ? currentQuarterStartMonth + 1 - 12 : currentQuarterStartMonth + 1
+						const month3 = currentQuarterStartMonth + 2 > 12 ? currentQuarterStartMonth + 2 - 12 : currentQuarterStartMonth + 2
+						
+						console.log(`首页季度计算: 开始月份${quarterStartMonth}, 当前月份${currentMonth}, 第${quarterNumber + 1}季度(${month1}-${month2}-${month3})`)
 						
 						return allRecords.filter(record => {
 							const recordDate = new Date(record.time)
 							const recordYear = recordDate.getFullYear()
-							const recordMonth = recordDate.getMonth()
+							const recordMonth = recordDate.getMonth() + 1
 							
-							return recordYear === currentYear && 
-								   recordMonth >= quarterStartMonth && 
-								   recordMonth < quarterStartMonth + 3
+							// 计算记录属于第几个季度
+							let recordQuarterNumber = 0
+							if (recordMonth >= quarterStartMonth) {
+								// 同一年内
+								recordQuarterNumber = Math.floor((recordMonth - quarterStartMonth) / 3)
+							} else {
+								// 跨年情况
+								recordQuarterNumber = Math.floor((12 - quarterStartMonth + recordMonth) / 3)
+							}
+							
+							// 只统计当前季度的记录
+							const isCurrentQuarter = recordQuarterNumber === quarterNumber
+							
+							// 处理跨年的情况
+							let isInQuarterRange = false
+							if (currentQuarterStartMonth <= 10) {
+								// 不跨年的季度 (如1-3月, 4-6月等)
+								isInQuarterRange = recordYear === currentYear && 
+												   (recordMonth === month1 || recordMonth === month2 || recordMonth === month3)
+							} else {
+								// 跨年的季度 (如11-1月, 12-2月)
+								isInQuarterRange = ((recordYear === currentYear && recordMonth >= currentQuarterStartMonth) ||
+												    (recordYear === currentYear + 1 && recordMonth <= month3))
+							}
+							
+							return isCurrentQuarter && isInQuarterRange
 						})
 					
 					case 'year':
-						// 年预算：本年度记录
-						const yearStart = currentDate.getFullYear()
-						
+						// 年分类：从1月1日开始计算
 						return allRecords.filter(record => {
 							const recordDate = new Date(record.time)
-							return recordDate.getFullYear() === yearStart
+							const recordYear = recordDate.getFullYear()
+							
+							// 只统计当前年度的记录
+							return recordYear === currentYear
 						})
 					
 					default:
 						return this.currentMonthRecords
 				}
 			},
+			
+			// 从记录中计算特定分类的支出 - 与预算管理页面保持一致
+			calculateCategorySpendingFromRecords(records, budget) {
+				return records
+					.filter(record => {
+						const isExpense = record.type === 'expense'
+						const isSameCategory = record.categoryId == budget.categoryId || record.categoryName === budget.categoryName
+						
+						if (isExpense && isSameCategory) {
+							console.log(`首页匹配到${this.getTimeUnitName(budget.timeUnit)}支出记录:`, {
+								amount: record.amount,
+								category: record.categoryName,
+								date: record.time,
+								timeUnit: budget.timeUnit
+							})
+						}
+						
+						return isExpense && isSameCategory
+					})
+					.reduce((sum, record) => {
+						const amount = parseFloat(record.amount) || 0
+						return sum + amount
+					}, 0)
+			},
+			
+			// 获取时间范围描述（用于调试）- 与预算管理页面保持一致
+			getTimeRangeDesc(timeUnit, quarterStartMonth = null) {
+				const currentDate = new Date()
+				const currentYear = currentDate.getFullYear()
+				const currentMonth = currentDate.getMonth() + 1
+				
+				switch(timeUnit) {
+					case 'day':
+					case 'month':
+						return `${currentYear}年${currentMonth}月`
+					case 'quarter':
+					   if (quarterStartMonth) {
+						   const m1 = this.monthNames[quarterStartMonth-1]
+						   const m2 = this.monthNames[(quarterStartMonth) % 12]
+						   const m3 = this.monthNames[(quarterStartMonth + 1) % 12]
+						   return `${currentYear}年自定义季度(${m1}-${m2}-${m3})`
+					} else {
+						const quarter = Math.floor((currentMonth - 1) / 3) + 1
+						const quarterStart = (quarter - 1) * 3 + 1
+						const quarterEnd = quarter * 3
+						return `${currentYear}年第${quarter}季度(${quarterStart}-${quarterEnd}月)`
+					}
+					case 'year':
+						return `${currentYear}年`
+					default:
+						return `${currentYear}年${currentMonth}月`
+				}
+			},
+			
+			// 获取时间单位名称
+			getTimeUnitName(timeUnit) {
+				const unit = this.timeUnits.find(u => u.key === timeUnit)
+				return unit ? unit.name : '月'
+			},
+			
+			// 保存分类预算数据 - 与预算管理页面保持一致
+			saveCategoryBudgets() {
+				uni.setStorageSync('categoryBudgets', this.categoryBudgets)
+			},
+			
 			
 			// 获取预算进度文本
 			getBudgetProgressText(spent, budget, timeUnit = 'month') {
