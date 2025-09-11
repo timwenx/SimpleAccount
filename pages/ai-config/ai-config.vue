@@ -59,10 +59,10 @@
 						<text class="template-name">智能记账助手</text>
 						<text class="template-desc">专门用于解析记账信息的AI助手</text>
 					</view>
-					<view class="template-item" @click="useTemplate('financial')">
+					<!-- <view class="template-item" @click="useTemplate('financial')">
 						<text class="template-name">财务顾问</text>
 						<text class="template-desc">提供理财建议和财务分析的AI助手</text>
-					</view>
+					</view> -->
 				</view>
 			</view>
 			
