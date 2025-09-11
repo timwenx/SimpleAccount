@@ -278,9 +278,6 @@ AI解析:
 
 <img src="app/images/智能记账-3.jpg" width="300" alt="确认记账">
 
-**智能记账 - 经典界面**
-
-<img src="app/images/智能记账.jpg" width="300" alt="智能记账经典界面">
 
 **智能体配置 - AI模型设置**
 
