@@ -757,7 +757,7 @@
 						'Authorization': `Bearer ${this.aiConfig.apiKey}`
 					},
 					data: requestData,
-					timeout: 30000
+					timeout: 120000
 				})
 				
 				if (response.statusCode !== 200) {
