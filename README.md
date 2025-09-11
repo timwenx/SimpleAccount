@@ -278,14 +278,9 @@ AI解析:
 
 <img src="app/images/智能记账-3.jpg" width="300" alt="确认记账">
 
-
 **智能体配置 - AI模型设置**
 
 <img src="app/images/智能体配置.jpg" width="300" alt="智能体配置页面">
-
-**智能配置**
-
-<img src="app/images/智能配置.jpg" width="300" alt="智能配置页面">
 
 **语音识别配置 - 按住说话设置**
 
