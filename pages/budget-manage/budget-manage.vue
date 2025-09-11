@@ -10,16 +10,16 @@
 		<view class="budget-overview">
 			<view class="overview-card">
 				<view class="overview-item">
-					<text class="overview-label">本月总预算</text>
+					<text class="overview-label">总预算</text>
 					<text class="overview-value total">¥{{ totalBudget.toFixed(2) }}</text>
 					<text class="budget-source">来自{{ categoryBudgets.length }}个分类预算</text>
 				</view>
 				<view class="overview-item">
-					<text class="overview-label">已使用</text>
+					<text class="overview-label">已使用预算</text>
 					<text class="overview-value used">¥{{ usedAmount.toFixed(2) }}</text>
 				</view>
 				<view class="overview-item">
-					<text class="overview-label">剩余</text>
+					<text class="overview-label">剩余预算</text>
 					<text class="overview-value remaining" :style="{color: remainingAmount >= 0 ? '#4CAF50' : '#FF6B6B'}">
 						¥{{ remainingAmount.toFixed(2) }}
 					</text>
@@ -37,13 +37,121 @@
 		
 		<!-- 快速设置 -->
 		<view class="quick-actions">
-			<view class="action-button" @click="showAddCategoryBudgetDialog">
+			<view class="action-button" @click="showBudgetForm = true">
 				<text class="action-icon">📋</text>
 				<text class="action-text">添加分类预算</text>
 			</view>
 			<view class="action-button" @click="refreshBudgetData">
 				<text class="action-icon">🔄</text>
 				<text class="action-text">刷新数据</text>
+			</view>
+		</view>
+		
+		<!-- 预算设置表单 -->
+		<view v-if="showBudgetForm" class="budget-form-overlay">
+			<view class="budget-form">
+				<view class="form-header">
+					<text class="form-title">{{ editingBudget ? '编辑预算' : '添加预算' }}</text>
+					<text class="form-close" @click="closeBudgetForm">✕</text>
+				</view>
+				
+				<view class="form-content">
+					<!-- 分类选择 -->
+					<view class="form-group">
+						<text class="form-label">选择分类</text>
+						<view class="category-selector">
+							<view 
+								v-for="category in availableCategories" 
+								:key="category.id"
+								class="category-option"
+								:class="{ 'selected': selectedCategory && selectedCategory.id === category.id }"
+								@click="selectCategory(category)"
+							>
+								<text class="category-icon">{{ category.icon }}</text>
+								<text class="category-name">{{ category.name }}</text>
+							</view>
+						</view>
+					</view>
+					
+					<!-- 时间单位选择 -->
+					<view class="form-group">
+						<text class="form-label">时间单位</text>
+						<view class="time-unit-selector">
+							<view 
+								v-for="unit in timeUnits" 
+								:key="unit.key"
+								class="time-unit-option"
+								:class="{ 'selected': selectedTimeUnit === unit.key }"
+								@click="selectTimeUnit(unit.key)"
+							>
+								<text class="unit-name">{{ unit.name }}</text>
+							</view>
+						</view>
+					</view>
+					
+					<!-- 季度开始月份选择 (仅当选择季度时显示) -->
+					<view v-if="selectedTimeUnit === 'quarter'" class="form-group">
+						<text class="form-label">季度开始月份</text>
+						<view class="month-selector">
+							<view 
+								v-for="(month, index) in monthNames" 
+								:key="index"
+								class="month-option"
+								:class="{ 'selected': selectedQuarterStartMonth === (index + 1) }"
+								@click="selectQuarterStartMonth(index + 1)"
+							>
+								<text class="month-name">{{ month }}</text>
+							</view>
+						</view>
+						<view v-if="selectedQuarterStartMonth" class="quarter-range-info">
+							<text class="range-text">
+								季度范围: {{ monthNames[selectedQuarterStartMonth - 1] }} - {{ monthNames[(selectedQuarterStartMonth) % 12] }} - {{ monthNames[(selectedQuarterStartMonth + 1) % 12] }}
+							</text>
+						</view>
+					</view>
+					
+					<!-- 预算金额输入 -->
+					<view class="form-group">
+						<text class="form-label">预算金额</text>
+						<view class="amount-input-wrapper">
+							<text class="currency-symbol">¥</text>
+							<input 
+								class="amount-input" 
+								type="number" 
+								v-model="budgetAmount" 
+								:placeholder="getAmountPlaceholder()"
+							/>
+						</view>
+					</view>
+					
+					<!-- 预算预览 -->
+					<view v-if="selectedCategory && selectedTimeUnit && budgetAmount" class="budget-preview">
+						<text class="preview-title">预算预览</text>
+						<view class="preview-content">
+							<view class="preview-item">
+								<text class="preview-label">分类:</text>
+								<text class="preview-value">{{ selectedCategory.icon }} {{ selectedCategory.name }}</text>
+							</view>
+							<view class="preview-item">
+								<text class="preview-label">类型:</text>
+								<text class="preview-value">{{ getTimeUnitDisplayName() }}</text>
+							</view>
+							<view class="preview-item">
+								<text class="preview-label">金额:</text>
+								<text class="preview-value">¥{{ parseFloat(budgetAmount || 0).toFixed(2) }}</text>
+							</view>
+						</view>
+					</view>
+				</view>
+				
+				<view class="form-actions">
+					<view class="action-btn cancel-btn" @click="closeBudgetForm">
+						<text class="btn-text">取消</text>
+					</view>
+					<view class="action-btn confirm-btn" @click="confirmBudget" :class="{ 'disabled': !canConfirm }">
+						<text class="btn-text">{{ editingBudget ? '更新' : '添加' }}</text>
+					</view>
+				</view>
 			</view>
 		</view>
 		
@@ -58,7 +166,7 @@
 				<text class="empty-icon">📊</text>
 				<text class="empty-title">暂无预算设置</text>
 				<text class="empty-desc">为不同支出分类设置预算，更好地控制开支</text>
-				<view class="empty-action" @click="showAddCategoryBudgetDialog">
+				<view class="empty-action" @click="showBudgetForm = true">
 					<text class="empty-action-text">添加第一个预算</text>
 				</view>
 			</view>
@@ -69,11 +177,11 @@
 						<text class="category-icon">{{ budget.categoryIcon }}</text>
 						<view class="category-details">
 							<text class="category-name">{{ budget.categoryName }}</text>
-							<text class="category-unit">{{ getTimeUnitName(budget.timeUnit || 'month') }}预算</text>
+							<text class="category-unit">{{ getQuarterBudgetDisplayName(budget) }}预算</text>
 						</view>
 					</view>
 					<view class="budget-actions">
-						<text class="action-edit" @click="editCategoryBudget(budget)">编辑</text>
+						<text class="action-edit" @click="editBudget(budget)">编辑</text>
 						<text class="action-delete" @click="deleteCategoryBudget(budget.categoryId)">删除</text>
 					</view>
 				</view>
@@ -166,34 +274,39 @@ export default {
 			currentMonthRecords: [], // 当前月份的记录
 			editingBudget: null, // 正在编辑的预算
 			timeUnits: [
-				{ key: 'day', name: '日', factor: 30 }, // 日预算 × 30 = 月预算
-				{ key: 'month', name: '月', factor: 1 }, // 月预算 × 1 = 月预算
-				{ key: 'quarter', name: '季', factor: 1/3 }, // 季预算 × 1/3 = 月预算
-				{ key: 'year', name: '年', factor: 1/12 } // 年预算 × 1/12 = 月预算
-			]
+			{ key: 'day', name: '日', factor: 30 }, // 日预算 × 30 = 月预算
+			{ key: 'month', name: '月', factor: 1 }, // 月预算 × 1 = 月预算
+			{ key: 'quarter', name: '季', factor: 1/3 }, // 季预算 × 1/3 = 月预算
+			{ key: 'year', name: '年', factor: 1/12 } // 年预算 × 1/12 = 月预算
+		],
+		monthNames: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+		
+		// 预算表单相关数据
+		showBudgetForm: false,
+		selectedCategory: null,
+		selectedTimeUnit: 'month',
+		selectedQuarterStartMonth: 1,
+		budgetAmount: ''
 		}
 	},
 	
 	computed: {
-		// 总预算 - 从各分类预算总和计算
+		// 总预算 - 直接计算各分类预算的总和
 		totalBudget() {
 			return this.categoryBudgets.reduce((sum, budget) => {
-				// 将各种时间单位的预算转换为月预算后累加
-				const monthlyBudget = this.convertToMonthlyBudget(budget.budgetAmount, budget.timeUnit || 'month')
-				return sum + monthlyBudget
+				// 直接累加预算金额，不进行时间单位转换
+				return sum + (budget.budgetAmount || 0)
 			}, 0)
 		},
 		
-		// 已使用金额
+		// 已使用金额 - 统一使用分类预算的计算方式
 		usedAmount() {
-			const total = this.currentMonthRecords
-				.filter(record => record.type === 'expense')
-				.reduce((sum, record) => {
-					const amount = parseFloat(record.amount) || 0
-					return sum + amount
-				}, 0)
-			
-			console.log('计算已使用金额:', total)
+			// 直接使用各分类预算的已使用金额总和
+			// 这样确保预算概览和分类预算的计算方式完全一致
+			const total = this.categoryBudgets.reduce((sum, budget) => {
+				return sum + (budget.spentAmount || 0)
+			}, 0)
+			console.log('计算已使用金额(统一方式):', total)
 			return total
 		},
 		
@@ -326,6 +439,44 @@ export default {
 			const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate()
 			
 			return this.dailyAverage * daysInMonth
+		},
+		
+		// 可用的分类列表（排除已设置预算的）
+		availableCategories() {
+			const expenseCategories = uni.getStorageSync('expenseCategories') || [
+				{id: 1, name: '餐饮', icon: '🍽️'},
+				{id: 2, name: '交通', icon: '🚗'},
+				{id: 3, name: '购物', icon: '🛍️'},
+				{id: 4, name: '娱乐', icon: '🎬'},
+				{id: 5, name: '住房', icon: '🏠'},
+				{id: 6, name: '医疗', icon: '💊'},
+				{id: 7, name: '教育', icon: '📚'},
+				{id: 8, name: '通讯', icon: '📱'},
+				{id: 9, name: '服装', icon: '👕'},
+				{id: 10, name: '其他', icon: '📦'}
+			]
+			
+			if (this.editingBudget) {
+				// 编辑模式：包含当前编辑的分类
+				return expenseCategories.filter(category => 
+					category.id === this.editingBudget.categoryId || 
+					!this.categoryBudgets.some(budget => budget.categoryId === category.id)
+				)
+			} else {
+				// 添加模式：排除已设置预算的分类
+				return expenseCategories.filter(category => 
+					!this.categoryBudgets.some(budget => budget.categoryId === category.id)
+				)
+			}
+		},
+		
+		// 是否可以确认添加/更新预算
+		canConfirm() {
+			return this.selectedCategory && 
+				   this.selectedTimeUnit && 
+				   this.budgetAmount && 
+				   parseFloat(this.budgetAmount) > 0 &&
+				   (this.selectedTimeUnit !== 'quarter' || this.selectedQuarterStartMonth)
 		}
 	},
 	
@@ -392,6 +543,38 @@ export default {
 			return unit ? unit.name : '月'
 		},
 		
+		// 获取季度预算显示名称（动态显示当前季度范围）
+		getQuarterBudgetDisplayName(budget) {
+			if (budget.timeUnit === 'quarter' && budget.quarterStartMonth) {
+				const currentDate = new Date()
+				const currentMonth = currentDate.getMonth() + 1 // 1-12
+				const quarterStartMonth = budget.quarterStartMonth
+				
+				// 计算当前月份属于第几个季度（从开始月份算起）
+				let quarterNumber = 0
+				if (currentMonth >= quarterStartMonth) {
+					// 同一年内
+					quarterNumber = Math.floor((currentMonth - quarterStartMonth) / 3)
+				} else {
+					// 跨年情况
+					quarterNumber = Math.floor((12 - quarterStartMonth + currentMonth) / 3)
+				}
+				
+				// 计算当前季度对应的3个月
+				const currentQuarterStartMonth = (quarterStartMonth + quarterNumber * 3 - 1) % 12 + 1
+				const month1 = currentQuarterStartMonth
+				const month2 = currentQuarterStartMonth + 1 > 12 ? currentQuarterStartMonth + 1 - 12 : currentQuarterStartMonth + 1
+				const month3 = currentQuarterStartMonth + 2 > 12 ? currentQuarterStartMonth + 2 - 12 : currentQuarterStartMonth + 2
+				
+				const m1 = this.monthNames[month1-1]
+				const m2 = this.monthNames[month2-1]
+				const m3 = this.monthNames[month3-1]
+				
+				return `季(${m1}-${m3})`
+			}
+			return this.getTimeUnitName(budget.timeUnit || 'month')
+		},
+		
 		// 获取支出统计标签
 		getSpentAmountLabel(timeUnit) {
 			switch(timeUnit) {
@@ -409,7 +592,7 @@ export default {
 		},
 		
 		// 获取时间范围描述（用于调试）
-		getTimeRangeDesc(timeUnit) {
+		getTimeRangeDesc(timeUnit, quarterStartMonth = null) {
 			const currentDate = new Date()
 			const currentYear = currentDate.getFullYear()
 			const currentMonth = currentDate.getMonth() + 1
@@ -419,10 +602,17 @@ export default {
 				case 'month':
 					return `${currentYear}年${currentMonth}月`
 				case 'quarter':
-					const quarter = Math.floor((currentMonth - 1) / 3) + 1
-					const quarterStart = (quarter - 1) * 3 + 1
-					const quarterEnd = quarter * 3
-					return `${currentYear}年第${quarter}季度(${quarterStart}-${quarterEnd}月)`
+					   if (quarterStartMonth) {
+						   const m1 = this.monthNames[quarterStartMonth-1]
+						   const m2 = this.monthNames[(quarterStartMonth) % 12]
+						   const m3 = this.monthNames[(quarterStartMonth + 1) % 12]
+						   return `${currentYear}年自定义季度(${m1}-${m2}-${m3})`
+					} else {
+						const quarter = Math.floor((currentMonth - 1) / 3) + 1
+						const quarterStart = (quarter - 1) * 3 + 1
+						const quarterEnd = quarter * 3
+						return `${currentYear}年第${quarter}季度(${quarterStart}-${quarterEnd}月)`
+					}
 				case 'year':
 					return `${currentYear}年`
 				default:
@@ -469,7 +659,7 @@ export default {
 				{ categoryName: '交通', budgetAmount: 200, timeUnit: 'month' },
 				{ categoryName: '购物', budgetAmount: 300, timeUnit: 'month' },
 				{ categoryName: '娱乐', budgetAmount: 200, timeUnit: 'month' },
-				{ categoryName: '住房', budgetAmount: 1500, timeUnit: 'quarter' } // 季度预算示例
+				{ categoryName: '住房', budgetAmount: 1500, timeUnit: 'quarter', quarterStartMonth: 1 } // 季度预算示例，从1月开始
 			]
 			
 			const newCategoryBudgets = []
@@ -478,14 +668,21 @@ export default {
 				// 查找对应的分类
 				const category = expenseCategories.find(cat => cat.name === defaultBudget.categoryName)
 				if (category) {
-					newCategoryBudgets.push({
+					const budgetItem = {
 						categoryId: category.id,
 						categoryName: category.name,
 						categoryIcon: category.icon,
 						budgetAmount: defaultBudget.budgetAmount,
 						timeUnit: defaultBudget.timeUnit,
 						spentAmount: 0
-					})
+					}
+					
+					// 如果是季度预算，添加开始月份
+					if (defaultBudget.timeUnit === 'quarter' && defaultBudget.quarterStartMonth) {
+						budgetItem.quarterStartMonth = defaultBudget.quarterStartMonth
+					}
+					
+					newCategoryBudgets.push(budgetItem)
 				}
 			})
 			
@@ -526,9 +723,11 @@ export default {
 		},
 		
 		// 根据时间单位获取相应时间范围的记录
-		getRecordsByTimeUnit(timeUnit) {
+		getRecordsByTimeUnit(timeUnit, quarterStartMonth = null) {
 			const allRecords = uni.getStorageSync('records') || []
 			const currentDate = new Date()
+			const currentYear = currentDate.getFullYear()
+			const currentMonth = currentDate.getMonth() + 1 // 1-12
 			
 			switch(timeUnit) {
 				case 'day':
@@ -536,32 +735,82 @@ export default {
 					return this.currentMonthRecords
 				
 				case 'month':
-					// 月预算：本月记录
-					return this.currentMonthRecords
+					// 月分类：从每个月1号开始计算支出
+					return allRecords.filter(record => {
+						const recordDate = new Date(record.time)
+						const recordYear = recordDate.getFullYear()
+						const recordMonth = recordDate.getMonth() + 1
+						
+						// 只统计当前年月的记录
+						return recordYear === currentYear && recordMonth === currentMonth
+					})
 				
 				case 'quarter':
-					// 季预算：本季度记录（当前季度的3个月）
-					const currentYear = currentDate.getFullYear()
-					const currentMonth = currentDate.getMonth()
-					const quarterStartMonth = Math.floor(currentMonth / 3) * 3 // 0, 3, 6, 9
+					// 季分类：连续季度计算，从开始月份开始每3个月为一个季度
+					if (!quarterStartMonth) {
+						// 如果没有指定开始月份，使用当前月份作为开始月份
+						quarterStartMonth = currentMonth
+					}
+					
+					// 计算当前月份属于第几个季度（从开始月份算起）
+					let quarterNumber = 0
+					if (currentMonth >= quarterStartMonth) {
+						// 同一年内
+						quarterNumber = Math.floor((currentMonth - quarterStartMonth) / 3)
+					} else {
+						// 跨年情况
+						quarterNumber = Math.floor((12 - quarterStartMonth + currentMonth) / 3)
+					}
+					
+					// 计算当前季度对应的3个月
+					const currentQuarterStartMonth = (quarterStartMonth + quarterNumber * 3 - 1) % 12 + 1
+					const month1 = currentQuarterStartMonth
+					const month2 = currentQuarterStartMonth + 1 > 12 ? currentQuarterStartMonth + 1 - 12 : currentQuarterStartMonth + 1
+					const month3 = currentQuarterStartMonth + 2 > 12 ? currentQuarterStartMonth + 2 - 12 : currentQuarterStartMonth + 2
+					
+					console.log(`季度计算: 开始月份${quarterStartMonth}, 当前月份${currentMonth}, 第${quarterNumber + 1}季度(${month1}-${month2}-${month3})`)
 					
 					return allRecords.filter(record => {
 						const recordDate = new Date(record.time)
 						const recordYear = recordDate.getFullYear()
-						const recordMonth = recordDate.getMonth()
+						const recordMonth = recordDate.getMonth() + 1
 						
-						return recordYear === currentYear && 
-							   recordMonth >= quarterStartMonth && 
-							   recordMonth < quarterStartMonth + 3
+						// 计算记录属于第几个季度
+						let recordQuarterNumber = 0
+						if (recordMonth >= quarterStartMonth) {
+							// 同一年内
+							recordQuarterNumber = Math.floor((recordMonth - quarterStartMonth) / 3)
+						} else {
+							// 跨年情况
+							recordQuarterNumber = Math.floor((12 - quarterStartMonth + recordMonth) / 3)
+						}
+						
+						// 只统计当前季度的记录
+						const isCurrentQuarter = recordQuarterNumber === quarterNumber
+						
+						// 处理跨年的情况
+						let isInQuarterRange = false
+						if (currentQuarterStartMonth <= 10) {
+							// 不跨年的季度 (如1-3月, 4-6月等)
+							isInQuarterRange = recordYear === currentYear && 
+											   (recordMonth === month1 || recordMonth === month2 || recordMonth === month3)
+						} else {
+							// 跨年的季度 (如11-1月, 12-2月)
+							isInQuarterRange = ((recordYear === currentYear && recordMonth >= currentQuarterStartMonth) ||
+											    (recordYear === currentYear + 1 && recordMonth <= month3))
+						}
+						
+						return isCurrentQuarter && isInQuarterRange
 					})
 				
 				case 'year':
-					// 年预算：本年度记录
-					const yearStart = currentDate.getFullYear()
-					
+					// 年分类：从1月1日开始计算
 					return allRecords.filter(record => {
 						const recordDate = new Date(record.time)
-						return recordDate.getFullYear() === yearStart
+						const recordYear = recordDate.getFullYear()
+						
+						// 只统计当前年度的记录
+						return recordYear === currentYear
 					})
 				
 				default:
@@ -580,36 +829,29 @@ export default {
 					budget.timeUnit = 'month'
 				}
 				
-				// 根据时间单位获取相应时间范围的记录
-				const timeRangeRecords = this.getRecordsByTimeUnit(budget.timeUnit)
-				const timeRangeDesc = this.getTimeRangeDesc(budget.timeUnit)
+				let categorySpending = 0
 				
-				console.log(`计算分类 ${budget.categoryName} (${this.getTimeUnitName(budget.timeUnit)}) 在 ${timeRangeDesc} 的支出`)
-				console.log(`时间范围内记录数:`, timeRangeRecords.length)
-				
-				const categorySpending = timeRangeRecords
-					.filter(record => {
-						const isExpense = record.type === 'expense'
-						const isSameCategory = record.categoryId == budget.categoryId || record.categoryName === budget.categoryName
-						
-						if (isExpense && isSameCategory) {
-							console.log(`匹配到${this.getTimeUnitName(budget.timeUnit)}支出记录:`, {
-								amount: record.amount,
-								category: record.categoryName,
-								date: record.time,
-								timeUnit: budget.timeUnit,
-								timeRange: timeRangeDesc
-							})
-						}
-						
-						return isExpense && isSameCategory
-					})
-					.reduce((sum, record) => {
-						const amount = parseFloat(record.amount) || 0
-						return sum + amount
-					}, 0)
+				// 根据新的计算规则计算已使用金额
+				if (budget.timeUnit === 'month') {
+					// 月度分类：单月支出
+					const timeRangeRecords = this.getRecordsByTimeUnit(budget.timeUnit)
+					categorySpending = this.calculateCategorySpendingFromRecords(timeRangeRecords, budget)
+				} else if (budget.timeUnit === 'quarter') {
+					// 季度分类：从开始月份算起这个季度的整个支出
+					const timeRangeRecords = this.getRecordsByTimeUnit(budget.timeUnit, budget.quarterStartMonth)
+					categorySpending = this.calculateCategorySpendingFromRecords(timeRangeRecords, budget)
+				} else if (budget.timeUnit === 'year') {
+					// 年度分类：这一年的年度支出(1月1日开始)
+					const timeRangeRecords = this.getRecordsByTimeUnit(budget.timeUnit)
+					categorySpending = this.calculateCategorySpendingFromRecords(timeRangeRecords, budget)
+				} else {
+					// 其他类型（如日）
+					const timeRangeRecords = this.getRecordsByTimeUnit(budget.timeUnit)
+					categorySpending = this.calculateCategorySpendingFromRecords(timeRangeRecords, budget)
+				}
 				
 				const timeUnitName = this.getTimeUnitName(budget.timeUnit)
+				const timeRangeDesc = this.getTimeRangeDesc(budget.timeUnit, budget.quarterStartMonth)
 				console.log(`分类 ${budget.categoryName} ${timeRangeDesc} ${timeUnitName}支出:`, categorySpending)
 				budget.spentAmount = categorySpending
 			})
@@ -618,104 +860,123 @@ export default {
 			this.saveCategoryBudgets()
 		},
 		
-		// 显示添加分类预算对话框
-		showAddCategoryBudgetDialog() {
-			// 获取所有支出分类
-			const expenseCategories = uni.getStorageSync('expenseCategories') || [
-					{id: 1, name: '餐饮', icon: '🍽️'},
-					{id: 2, name: '交通', icon: '🚗'},
-					{id: 3, name: '购物', icon: '🛍️'},
-					{id: 4, name: '娱乐', icon: '🎬'},
-					{id: 5, name: '住房', icon: '🏠'},
-					{id: 6, name: '医疗', icon: '💊'},
-					{id: 7, name: '教育', icon: '📚'},
-					{id: 8, name: '通讯', icon: '📱'},
-					{id: 9, name: '服装', icon: '👕'},
-					{id: 10, name: '其他', icon: '📦'}
-				]
-			
-			if (expenseCategories.length === 0) {
-				uni.showToast({
-					title: '暂无支出分类',
-					icon: 'none'
+		// 从记录中计算特定分类的支出
+		calculateCategorySpendingFromRecords(records, budget) {
+			return records
+				.filter(record => {
+					const isExpense = record.type === 'expense'
+					const isSameCategory = record.categoryId == budget.categoryId || record.categoryName === budget.categoryName
+					
+					if (isExpense && isSameCategory) {
+						console.log(`匹配到${this.getTimeUnitName(budget.timeUnit)}支出记录:`, {
+							amount: record.amount,
+							category: record.categoryName,
+							date: record.time,
+							timeUnit: budget.timeUnit
+						})
+					}
+					
+					return isExpense && isSameCategory
 				})
-				return
-			}
-			
-			// 过滤出还没有设置预算的分类
-			const availableCategories = expenseCategories.filter(category => 
-				!this.categoryBudgets.some(budget => budget.categoryId === category.id)
-			)
-			
-			if (availableCategories.length === 0) {
-				uni.showToast({
-					title: '所有分类都已设置预算',
-					icon: 'none'
-				})
-				return
-			}
-			
-			const categoryNames = availableCategories.map(cat => `${cat.icon} ${cat.name}`)
-			
-			uni.showActionSheet({
-				itemList: categoryNames,
-				success: (res) => {
-					const selectedCategory = availableCategories[res.tapIndex]
-					this.showBudgetAmountDialog(selectedCategory)
-				}
-			})
+				.reduce((sum, record) => {
+					const amount = parseFloat(record.amount) || 0
+					return sum + amount
+				}, 0)
 		},
 		
-		// 显示预算金额输入对话框
-		showBudgetAmountDialog(category, isEdit = false) {
-			const title = isEdit ? '编辑预算' : '设置预算'
-			const currentAmount = isEdit ? this.editingBudget.budgetAmount : 0
-			const currentTimeUnit = isEdit ? this.editingBudget.timeUnit || 'month' : 'month'
+		// === 预算表单相关方法 ===
+		
+		// 选择分类
+		selectCategory(category) {
+			this.selectedCategory = category
+		},
+		
+		// 选择时间单位
+		selectTimeUnit(timeUnit) {
+			this.selectedTimeUnit = timeUnit
+			if (timeUnit !== 'quarter') {
+				this.selectedQuarterStartMonth = 1 // 重置季度开始月份
+			}
+		},
+		
+		// 选择季度开始月份
+		selectQuarterStartMonth(month) {
+			this.selectedQuarterStartMonth = month
+		},
+		
+		// 获取金额输入框占位符
+		getAmountPlaceholder() {
+			if (!this.selectedTimeUnit) return '请输入预算金额'
 			
-			// 先选择时间单位
-			const timeUnitNames = this.timeUnits.map(unit => {
-				if (isEdit && unit.key === currentTimeUnit) {
-					return `${unit.name} (当前)`
-				}
-				return unit.name
-			})
+			const unitName = this.selectedTimeUnit === 'quarter' && this.selectedQuarterStartMonth ? 
+				`季度(${this.monthNames[this.selectedQuarterStartMonth-1]}-${this.monthNames[((this.selectedQuarterStartMonth + 2) % 12) || 12 - 1]})` : 
+				this.getTimeUnitName(this.selectedTimeUnit)
 			
-			uni.showActionSheet({
-				itemList: timeUnitNames,
-				success: (res) => {
-					const selectedTimeUnit = this.timeUnits[res.tapIndex]
-					
-					// 然后输入金额
-					uni.showModal({
-						title: `${title} - ${category.name} (${selectedTimeUnit.name}预算)`,
-						content: isEdit ? `${currentAmount.toFixed(2)}` : '',
-						editable: true,
-						placeholderText: isEdit ? currentAmount.toString() : `请输入${selectedTimeUnit.name}预算金额`,
-						success: (res) => {
-							if (res.confirm && res.content) {
-								const amount = parseFloat(res.content)
-								if (isNaN(amount) || amount < 0) {
-									uni.showToast({
-										title: '请输入有效金额',
-										icon: 'none'
-									})
-									return
-								}
-								
-								if (isEdit) {
-									this.updateCategoryBudget(category, amount, selectedTimeUnit.key)
-								} else {
-									this.addCategoryBudget(category, amount, selectedTimeUnit.key)
-								}
-							}
-						}
-					})
-				}
-			})
+			return `请输入${unitName}预算金额`
+		},
+		
+		// 获取时间单位显示名称
+		getTimeUnitDisplayName() {
+			if (this.selectedTimeUnit === 'quarter' && this.selectedQuarterStartMonth) {
+				const endMonth = ((this.selectedQuarterStartMonth + 2) % 12) || 12
+				return `季度预算 (${this.monthNames[this.selectedQuarterStartMonth-1]} - ${this.monthNames[endMonth-1]})`
+			}
+			return `${this.getTimeUnitName(this.selectedTimeUnit)}预算`
+		},
+		
+		// 编辑预算
+		editBudget(budget) {
+			this.editingBudget = budget
+			this.selectedCategory = {
+				id: budget.categoryId,
+				name: budget.categoryName,
+				icon: budget.categoryIcon
+			}
+			this.selectedTimeUnit = budget.timeUnit || 'month'
+			this.selectedQuarterStartMonth = budget.quarterStartMonth || 1
+			this.budgetAmount = budget.budgetAmount.toString()
+			this.showBudgetForm = true
+		},
+		
+		// 关闭预算表单
+		closeBudgetForm() {
+			this.showBudgetForm = false
+			this.editingBudget = null
+			this.selectedCategory = null
+			this.selectedTimeUnit = 'month'
+			this.selectedQuarterStartMonth = 1
+			this.budgetAmount = ''
+		},
+		
+		// 确认添加/更新预算
+		confirmBudget() {
+			if (!this.canConfirm) {
+				uni.showToast({
+					title: '请完善预算信息',
+					icon: 'none'
+				})
+				return
+			}
+			
+			const amount = parseFloat(this.budgetAmount)
+			const quarterStartMonth = this.selectedTimeUnit === 'quarter' ? this.selectedQuarterStartMonth : null
+			
+			if (this.editingBudget) {
+				this.updateCategoryBudget(this.selectedCategory, amount, this.selectedTimeUnit, quarterStartMonth)
+			} else {
+				this.addCategoryBudget(this.selectedCategory, amount, this.selectedTimeUnit, quarterStartMonth)
+			}
+			
+			this.closeBudgetForm()
+		},
+		
+		// 显示添加分类预算对话框 (保留兼容性，现在直接显示表单)
+		showAddCategoryBudgetDialog() {
+			this.showBudgetForm = true
 		},
 		
 		// 添加分类预算
-		addCategoryBudget(category, amount, timeUnit) {
+		addCategoryBudget(category, amount, timeUnit, quarterStartMonth = null) {
 			const newBudget = {
 				categoryId: category.id,
 				categoryName: category.name,
@@ -725,36 +986,46 @@ export default {
 				spentAmount: 0
 			}
 			
+			// 如果是季度预算，添加开始月份
+			if (timeUnit === 'quarter' && quarterStartMonth) {
+				newBudget.quarterStartMonth = quarterStartMonth
+			}
+			
 			this.categoryBudgets.push(newBudget)
 			this.calculateCategorySpending()
 			
-			const timeUnitName = this.getTimeUnitName(timeUnit)
+			const timeUnitName = timeUnit === 'quarter' && quarterStartMonth ? 
+				`季(${this.monthNames[quarterStartMonth-1]}-${this.monthNames[((quarterStartMonth + 2) % 12) || 12 - 1]})` : 
+				this.getTimeUnitName(timeUnit)
+			
 			uni.showToast({
 				title: `${timeUnitName}预算添加成功`,
 				icon: 'success'
 			})
 		},
 		
-		// 编辑分类预算
-		editCategoryBudget(budget) {
-			this.editingBudget = budget
-			const category = {
-				id: budget.categoryId,
-				name: budget.categoryName,
-				icon: budget.categoryIcon
-			}
-			this.showBudgetAmountDialog(category, true)
-		},
-		
 		// 更新分类预算
-		updateCategoryBudget(category, amount, timeUnit) {
+		updateCategoryBudget(category, amount, timeUnit, quarterStartMonth = null) {
 			const index = this.categoryBudgets.findIndex(budget => budget.categoryId === category.id)
 			if (index !== -1) {
 				this.categoryBudgets[index].budgetAmount = amount
 				this.categoryBudgets[index].timeUnit = timeUnit
-				this.saveCategoryBudgets()
 				
-				const timeUnitName = this.getTimeUnitName(timeUnit)
+				// 更新季度开始月份
+				if (timeUnit === 'quarter' && quarterStartMonth) {
+					this.categoryBudgets[index].quarterStartMonth = quarterStartMonth
+				} else if (timeUnit !== 'quarter') {
+					// 如果改为非季度预算，删除季度开始月份
+					delete this.categoryBudgets[index].quarterStartMonth
+				}
+				
+				this.saveCategoryBudgets()
+				this.calculateCategorySpending()
+				
+				const timeUnitName = timeUnit === 'quarter' && quarterStartMonth ? 
+					`季(${this.monthNames[quarterStartMonth-1]}-${this.monthNames[((quarterStartMonth + 2) % 12) || 12 - 1]})` : 
+					this.getTimeUnitName(timeUnit)
+				
 				uni.showToast({
 					title: `${timeUnitName}预算更新成功`,
 					icon: 'success'
@@ -1376,5 +1647,301 @@ export default {
 .trend-icon {
 	font-size: 32rpx;
 	margin-right: 12rpx;
+}
+
+/* 预算表单样式 */
+.budget-form-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.5);
+	z-index: 1000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 40rpx;
+}
+
+.budget-form {
+	background: white;
+	border-radius: 20rpx;
+	width: 100%;
+	max-width: 600rpx;
+	max-height: 80vh;
+	overflow-y: auto;
+	box-shadow: 0 10rpx 30rpx rgba(0, 0, 0, 0.3);
+}
+
+.form-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 30rpx;
+	border-bottom: 2rpx solid #f0f0f0;
+}
+
+.form-title {
+	font-size: 36rpx;
+	font-weight: bold;
+	color: #333;
+}
+
+.form-close {
+	font-size: 32rpx;
+	color: #999;
+	padding: 10rpx;
+	border-radius: 50%;
+	background: #f5f5f5;
+	width: 60rpx;
+	height: 60rpx;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.form-content {
+	padding: 30rpx;
+}
+
+.form-group {
+	margin-bottom: 40rpx;
+}
+
+.form-label {
+	font-size: 28rpx;
+	color: #333;
+	font-weight: 600;
+	display: block;
+	margin-bottom: 20rpx;
+}
+
+/* 分类选择器 */
+.category-selector {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 15rpx;
+}
+
+.category-option {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 20rpx 15rpx;
+	border: 2rpx solid #e0e0e0;
+	border-radius: 12rpx;
+	min-width: 120rpx;
+	background: white;
+	transition: all 0.3s ease;
+}
+
+.category-option.selected {
+	border-color: #2196F3;
+	background: #E3F2FD;
+}
+
+.category-option .category-icon {
+	font-size: 28rpx;
+	margin-bottom: 8rpx;
+}
+
+.category-option .category-name {
+	font-size: 22rpx;
+	color: #666;
+	text-align: center;
+}
+
+.category-option.selected .category-name {
+	color: #2196F3;
+	font-weight: 600;
+}
+
+/* 时间单位选择器 */
+.time-unit-selector {
+	display: flex;
+	gap: 15rpx;
+	flex-wrap: wrap;
+}
+
+.time-unit-option {
+	padding: 20rpx 30rpx;
+	border: 2rpx solid #e0e0e0;
+	border-radius: 50rpx;
+	background: white;
+	transition: all 0.3s ease;
+}
+
+.time-unit-option.selected {
+	border-color: #2196F3;
+	background: #2196F3;
+}
+
+.time-unit-option .unit-name {
+	font-size: 26rpx;
+	color: #666;
+}
+
+.time-unit-option.selected .unit-name {
+	color: white;
+	font-weight: 600;
+}
+
+/* 月份选择器 */
+.month-selector {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12rpx;
+}
+
+.month-option {
+	padding: 15rpx 20rpx;
+	border: 2rpx solid #e0e0e0;
+	border-radius: 8rpx;
+	background: white;
+	transition: all 0.3s ease;
+	min-width: 80rpx;
+	text-align: center;
+}
+
+.month-option.selected {
+	border-color: #4CAF50;
+	background: #4CAF50;
+}
+
+.month-option .month-name {
+	font-size: 24rpx;
+	color: #666;
+}
+
+.month-option.selected .month-name {
+	color: white;
+	font-weight: 600;
+}
+
+.quarter-range-info {
+	margin-top: 15rpx;
+	padding: 15rpx;
+	background: #E8F5E8;
+	border-radius: 8rpx;
+}
+
+.range-text {
+	font-size: 24rpx;
+	color: #2E7D32;
+	text-align: center;
+}
+
+/* 金额输入 */
+.amount-input-wrapper {
+	position: relative;
+	display: flex;
+	align-items: center;
+	border: 2rpx solid #e0e0e0;
+	border-radius: 12rpx;
+	background: white;
+	overflow: hidden;
+}
+
+.currency-symbol {
+	padding: 20rpx;
+	background: #f5f5f5;
+	font-size: 28rpx;
+	color: #666;
+	font-weight: 600;
+}
+
+.amount-input {
+	flex: 1;
+	margin: 20rpx;
+	font-size: 28rpx;
+	border: none;
+	outline: none;
+}
+
+/* 预算预览 */
+.budget-preview {
+	background: linear-gradient(135deg, #F0F7FF 0%, #F8FBFF 100%);
+	border: 2rpx solid #E3F2FD;
+	border-radius: 16rpx;
+	padding: 25rpx;
+}
+
+.preview-title {
+	font-size: 28rpx;
+	font-weight: 600;
+	color: #1976D2;
+	display: block;
+	margin-bottom: 20rpx;
+	text-align: center;
+}
+
+.preview-content {
+	display: flex;
+	flex-direction: column;
+	gap: 15rpx;
+}
+
+.preview-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.preview-label {
+	font-size: 26rpx;
+	color: #666;
+}
+
+.preview-value {
+	font-size: 26rpx;
+	color: #333;
+	font-weight: 600;
+}
+
+/* 表单操作按钮 */
+.form-actions {
+	padding: 30rpx;
+	border-top: 2rpx solid #f0f0f0;
+	display: flex;
+	gap: 20rpx;
+}
+
+.action-btn {
+	flex: 1;
+	padding: 25rpx;
+	border-radius: 12rpx;
+	text-align: center;
+	transition: all 0.3s ease;
+}
+
+.cancel-btn {
+	background: #f5f5f5;
+	border: 2rpx solid #e0e0e0;
+}
+
+.cancel-btn .btn-text {
+	color: #666;
+	font-size: 28rpx;
+}
+
+.confirm-btn {
+	background: #2196F3;
+	border: 2rpx solid #2196F3;
+}
+
+.confirm-btn .btn-text {
+	color: white;
+	font-size: 28rpx;
+	font-weight: 600;
+}
+
+.confirm-btn.disabled {
+	background: #e0e0e0;
+	border-color: #e0e0e0;
+}
+
+.confirm-btn.disabled .btn-text {
+	color: #999;
 }
 </style>
