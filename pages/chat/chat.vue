@@ -773,20 +773,24 @@
 				
 				// 尝试解析记账信息（支持单笔或多笔）
 				const recordsData = this.parseRecordsData(aiReply)
-				
+				console.log('解析到的记账数据:', recordsData)
 				if (recordsData && recordsData.length > 0) {
 					// 包含记账信息的回复 - 清理掉JSON代码块和对象
-					let replyText = aiReply
-						.replace(/```(?:json)?\s*\{[\s\S]*?\}\s*```/g, '') // 移除JSON代码块
-						.replace(/```(?:json)?\s*\[[\s\S]*?\]\s*```/g, '') // 移除JSON数组代码块
-						.replace(/\{[\s\S]*?"type"\s*:\s*"(expense|income)"[\s\S]*?\}/g, '') // 移除JSON对象
-						.replace(/\n\s*\n/g, '\n') // 清理多余的空行
-						.trim()
+					console.log('原始AI回复文本:', aiReply)
+					// let replyText = aiReply
+					// 	.replace(/```(?:json)?\s*\{[\s\S]*?\}\s*```/g, '') // 移除JSON代码块
+					// 	.replace(/```(?:json)?\s*\[[\s\S]*?\]\s*```/g, '') // 移除JSON数组代码块
+					// 	.replace(/\{[\s\S]*?"type"\s*:\s*"(expense|income)"[\s\S]*?\}/g, '') // 移除JSON对象
+					// 	.replace(/\n\s*\n/g, '\n') // 清理多余的空行
+					// 	.trim()
+					// console.log('清理后的回复文本:', replyText)
 					
 					// 如果清理后没有文本，使用默认文本
-					if (!replyText) {
-						replyText = `我帮你识别了${recordsData.length}笔记录：`
-					}
+					// if (!replyText) {
+					console.log(recordsData)
+						let replyText = `我帮你识别了${recordsData.length}笔记录：`
+					// }
+					console.log('最终回复文本:', replyText)
 					
 					this.addMessage('assistant', replyText, recordsData)
 				} else {
@@ -797,11 +801,26 @@
 			
 			// 解析记账数据（支持单笔和多笔）
 			parseRecordsData(text) {
+				console.log('尝试解析AI回复中的记账数据:', text)
 				try {
+					try {
+						// 先尝试直接解析为JSON
+						const data = JSON.parse(text)
+						if (Array.isArray(data)) {
+							const validRecords = data.filter(item => this.validateRecordData(item))
+							if (validRecords.length > 0) {
+								return validRecords
+							}
+						} else if (this.validateRecordData(data)) {
+							return [data]
+						}
+					} catch (error) {
+						// 直接解析失败，继续尝试其他方法
+					}
 					// 先尝试提取markdown代码块中的JSON
 					const codeBlockMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\}|\[[\s\S]*?\])\s*```/);
 					if (codeBlockMatch) {
-						let jsonStr = codeBlockMatch[1].trim()
+						let jsonStr = codeBlockMatch[1].trim();
 						// 处理转义字符
 						jsonStr = this.unescapeJsonString(jsonStr)
 						const data = JSON.parse(jsonStr)
