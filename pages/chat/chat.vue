@@ -65,7 +65,10 @@
 				<!-- 用户消息：头像在右边 -->
 				<template v-else>
 					<view class="message-content">
-						<text class="message-text">{{ message.content }}</text>
+						<text 
+							class="message-text"
+							@longpress="copyUserMessage(message.content)"
+						>{{ message.content }}</text>
 						<text class="message-time">{{ formatTime(message.timestamp) }}</text>
 					</view>
 					<view class="avatar user-avatar">👤</view>
@@ -84,6 +87,8 @@
 					<text class="loading-text">AI正在思考...</text>
 				</view>
 			</view>
+			<!-- 滚动锚点 -->
+			<view id="bottomAnchor"></view>
 		</scroll-view>
 		
 		<!-- 固定在底部的输入区域 -->
@@ -184,6 +189,27 @@
 		},
 		
 		methods: {
+		// 长按复制用户消息内容
+		copyUserMessage(content) {
+			if (!content) return;
+			uni.setClipboardData({
+				data: content,
+				success: () => {
+					uni.showToast({
+						title: '已复制',
+						icon: 'success',
+						duration: 1200
+					});
+				},
+				fail: () => {
+					uni.showToast({
+						title: '复制失败',
+						icon: 'none',
+						duration: 1200
+					});
+				}
+			});
+		},
 			// 申请麦克风权限
 			async requestMicrophonePermission() {
 				return new Promise((resolve, reject) => {
@@ -648,7 +674,12 @@
 				}
 				
 				this.addMessage('user', message)
-				
+
+				// 发送后滚动到底部
+				this.$nextTick(() => {
+					this.scrollToBottom()
+				})
+
 				if (!messageText) {
 					this.inputText = ''
 				}
@@ -691,7 +722,8 @@
 					}
 					categoryInfo += '\n\n请优先从上述分类中选择最合适的，避免创建重复或相似的分类。'
 				}
-				
+				categoryInfo+="\n\n当前时间："+(new Date()).toLocaleString();
+
 				const systemPrompt = (this.aiConfig.systemPrompt || '你是一个智能记账助手') + categoryInfo
 				
 				const messages = [
@@ -959,11 +991,20 @@
 			// 解析记录时间
 			parseRecordTime(timeDescription) {
 				const now = new Date()
-				
 				if (!timeDescription || timeDescription === '刚才') {
 					return now
 				}
-				
+
+				// 检查是否为具体时间格式：YYYY-MM-DD HH:mm:ss
+				const dateTimePattern = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
+				if (dateTimePattern.test(timeDescription)) {
+					// 直接解析为Date对象
+					const [datePart, timePart] = timeDescription.split(' ')
+					const [year, month, day] = datePart.split('-').map(Number)
+					const [hour, minute, second] = timePart.split(':').map(Number)
+					return new Date(year, month - 1, day, hour, minute, second)
+				}
+
 				// 解析相对时间
 				if (timeDescription.includes('今天')) {
 					if (timeDescription.includes('早上') || timeDescription.includes('上午')) {
@@ -978,7 +1019,6 @@
 				} else if (timeDescription.includes('昨天')) {
 					const yesterday = new Date(now)
 					yesterday.setDate(now.getDate() - 1)
-					
 					if (timeDescription.includes('早上') || timeDescription.includes('上午')) {
 						return new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 8, 0)
 					} else if (timeDescription.includes('中午')) {
@@ -993,7 +1033,7 @@
 					dayBeforeYesterday.setDate(now.getDate() - 2)
 					return new Date(dayBeforeYesterday.getFullYear(), dayBeforeYesterday.getMonth(), dayBeforeYesterday.getDate(), 12, 0)
 				}
-				
+
 				// 默认返回当前时间
 				return now
 			},
@@ -1230,12 +1270,22 @@
 			
 			// 滚动到底部
 			scrollToBottom() {
-				const query = uni.createSelectorQuery().in(this)
-				query.select('.chat-container').boundingClientRect((rect) => {
-					if (rect) {
-						this.scrollTop = rect.height
-					}
-				}).exec()
+				this.$nextTick(() => {
+					const query = uni.createSelectorQuery().in(this)
+					query.select('#bottomAnchor').boundingClientRect((rect) => {
+						if (rect) {
+							// 兼容H5和小程序
+							if (typeof this.scrollTop !== 'undefined') {
+								this.scrollTop = rect.top
+							}
+							// H5下可用scrollIntoView
+							const anchor = document.getElementById && document.getElementById('bottomAnchor')
+							if (anchor && anchor.scrollIntoView) {
+								anchor.scrollIntoView({behavior: 'smooth'})
+							}
+						}
+					}).exec()
+				})
 			}
 		}
 	}
@@ -1259,7 +1309,7 @@
 	
 	.chat-container {
 		flex: 1;
-		padding: 30rpx 20rpx;
+		/* padding: 30rpx 20rpx; */
 		padding-bottom: 160rpx;
 		overflow-y: auto;
 		overflow-x: hidden;
