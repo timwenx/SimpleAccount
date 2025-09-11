@@ -278,29 +278,45 @@ AI解析:
 
 <img src="app/images/智能记账-3.jpg" width="300" alt="确认记账">
 
+**智能记账 - 经典界面**
+
+<img src="app/images/智能记账.jpg" width="300" alt="智能记账经典界面">
+
 **智能体配置 - AI模型设置**
 
 <img src="app/images/智能体配置.jpg" width="300" alt="智能体配置页面">
+
+**智能配置**
+
+<img src="app/images/智能配置.jpg" width="300" alt="智能配置页面">
 
 **语音识别配置 - 按住说话设置**
 
 <img src="app/images/语音识别配置.jpg" width="300" alt="语音识别配置页面">
 
+**按住说话演示**
+
+<img src="app/images/按住说话.jpg" width="300" alt="按住说话演示">
+
+**按住说话演示2**
+
+<img src="app/images/按住说话-1.jpg" width="300" alt="按住说话演示2">
+
 **统计分析**
 
 <img src="app/images/统计.jpg" width="300" alt="统计页面">
-
-**分类管理**
-
-<img src="app/images/分类管理.jpg" width="300" alt="分类管理页面">
 
 **分类详情**
 
 <img src="app/images/分类详情.jpg" width="300" alt="分类详情页面">
 
-**图标管理 - 20+图标**
+**图标管理**
 
 <img src="app/images/图标管理.jpg" width="300" alt="图标管理页面">
+
+**预算管理**
+
+<img src="app/images/预算管理.jpg" width="300" alt="预算管理页面">
 
 **个人中心**
 
