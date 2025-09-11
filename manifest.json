@@ -2,7 +2,7 @@
     "name" : "简账",
     "appid" : "__UNI__B5EBC6F",
     "description" : "一个自用记账APP",
-    "versionName" : "1.0.3",
+    "versionName" : "1.0.4",
     "versionCode" : "100",
     "transformPx" : false,
     /* 5+App特有相关 */
