@@ -278,7 +278,7 @@
 				}
 				
 				// 保存到本地存储
-				uni.setStorageSync('aiConfig', this.config)
+				this.$saveStorageAndFile('aiConfig', this.config)
 				
 				uni.showToast({
 					title: '配置已保存',

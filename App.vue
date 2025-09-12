@@ -16,12 +16,10 @@
 				const isFirstLaunch = uni.getStorageSync('isFirstLaunch')
 				if (!isFirstLaunch) {
 					// 首次启动，初始化一些演示数据
-					this.initDemoData()
-					uni.setStorageSync('isFirstLaunch', true)
+					this.initDemoRecords()
 				}
 			},
-			
-			initDemoData() {
+			initDemoRecords() {
 				// 创建一些演示记录
 				const demoRecords = [
 					{
@@ -57,7 +55,8 @@
 				]
 				
 				uni.setStorageSync('records', demoRecords)
-			}
+				uni.setStorageSync('isFirstLaunch', true)
+			},
 		}
 	}
 </script>

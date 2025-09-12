@@ -220,12 +220,12 @@
 				
 				if (!expenseCategories || expenseCategories.length == 0) {
 					expenseCategories = defaultExpenseCategories
-					uni.setStorageSync('expenseCategories', expenseCategories)
+					this.$saveStorageAndFile('expenseCategories', expenseCategories)
 				}
 				
 				if (!incomeCategories || incomeCategories.length == 0) {
 					incomeCategories = defaultIncomeCategories
-					uni.setStorageSync('incomeCategories', incomeCategories)
+					this.$saveStorageAndFile('incomeCategories', incomeCategories)
 				}
 				
 				this.expenseCategories = expenseCategories
@@ -409,7 +409,7 @@
 				// 保存到本地存储
 				const records = uni.getStorageSync('records') || []
 				records.push(record)
-				uni.setStorageSync('records', records)
+				this.$saveStorageAndFile('records', records)
 				
 				// 显示成功提示
 				uni.showToast({
@@ -449,7 +449,7 @@
 				}
 				
 				records[recordIndex] = updatedRecord
-				uni.setStorageSync('records', records)
+				this.$saveStorageAndFile('records', records)
 				
 				// 显示成功提示
 				uni.showToast({

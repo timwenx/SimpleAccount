@@ -688,7 +688,7 @@ export default {
 			
 			if (newCategoryBudgets.length > 0) {
 				this.categoryBudgets = newCategoryBudgets
-				uni.setStorageSync('categoryBudgets', this.categoryBudgets)
+				this.$saveStorageAndFile('categoryBudgets', this.categoryBudgets)
 				console.log('创建了默认分类预算:', newCategoryBudgets.length, '个')
 			}
 		},
@@ -1056,7 +1056,7 @@ export default {
 		
 		// 保存分类预算数据
 		saveCategoryBudgets() {
-			uni.setStorageSync('categoryBudgets', this.categoryBudgets)
+			this.$saveStorageAndFile('categoryBudgets', this.categoryBudgets)
 		},
 		
 		// 获取预算进度颜色
