@@ -46,7 +46,8 @@
                     "<uses-permission android:name=\"android.permission.READ_EXTERNAL_STORAGE\"/>",
                     "<uses-permission android:name=\"android.permission.WRITE_EXTERNAL_STORAGE\"/>",
                     "<uses-permission android:name=\"android.permission.MANAGE_EXTERNAL_STORAGE\"/>"
-                ]
+                ],
+                "abiFilters" : [ "armeabi-v7a", "arm64-v8a" ]
             },
             /* ios打包配置 */
             "ios" : {
