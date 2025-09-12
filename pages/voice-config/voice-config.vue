@@ -410,7 +410,7 @@
 				if (!this.canSave) return
 				
 				try {
-					uni.setStorageSync('voiceConfig', this.config)
+					this.$saveStorageAndFile('voiceConfig', this.config)
 					
 					uni.showToast({
 						title: '保存成功',

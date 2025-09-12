@@ -66,6 +66,16 @@
 				</view>
 				<text class="management-arrow">></text>
 			</view>
+
+			// #ifdef APP-PLUS
+			<view class="management-item danger-item" @click="data_recovery">
+				<view class="management-left">
+					<text class="management-icon">🔄</text>
+					<text class="management-text">数据恢复(重新安装数据丢失)</text>
+				</view>
+				<text class="management-arrow">></text>
+			</view>
+			// #endif
 			<view class="management-item danger-item" @click="clearAllData">
 				<view class="management-left">
 					<text class="management-icon">🗑️</text>
@@ -307,9 +317,9 @@
 					}
 					
 					// 7. 保存更新后的数据
-					uni.setStorageSync('records', updatedRecords)
-					uni.setStorageSync('expenseCategories', newExpenseCategories)
-					uni.setStorageSync('incomeCategories', newIncomeCategories)
+					this.$saveStorageAndFile('records', updatedRecords)
+					this.$saveStorageAndFile('expenseCategories', newExpenseCategories)
+					this.$saveStorageAndFile('incomeCategories', newIncomeCategories)
 					
 					// 隐藏加载提示
 					uni.hideLoading()
@@ -876,7 +886,7 @@
 						const allRecords = [...existingRecords, ...records]
 						console.log('合并后总记录数:', allRecords.length)
 						
-						uni.setStorageSync('records', allRecords)
+						this.$saveStorageAndFile('records', allRecords)
 						console.log('数据保存成功')
 						
 						// 构建成功消息
@@ -1624,10 +1634,10 @@
 				// 添加到对应的分类列表
 				if (type === 'expense') {
 					expenseCategories.push(newCategory)
-					uni.setStorageSync('expenseCategories', expenseCategories)
+					this.$saveStorageAndFile('expenseCategories', expenseCategories)
 				} else {
 					incomeCategories.push(newCategory)
-					uni.setStorageSync('incomeCategories', incomeCategories)
+					this.$saveStorageAndFile('incomeCategories', incomeCategories)
 				}
 				
 				console.log('新分类已保存到存储')
@@ -1709,7 +1719,7 @@
 				const allRecords = [...existingRecords, ...sampleData]
 				console.log('合并后总记录数:', allRecords.length)
 				
-				uni.setStorageSync('records', allRecords)
+				this.$saveStorageAndFile('records', allRecords)
 				console.log('示例数据保存成功')
 				
 				uni.showToast({
@@ -1719,7 +1729,146 @@
 				})
 				console.log('=== 示例数据创建流程完成 ===')
 			},
+			data_recovery() {
+				let recordCount=1;
+				let fileName = '1.txt';
+				this.$checkStoragePermission().then(() => {
+				  try {
+					const Environment = plus.android.importClass('android.os.Environment');
+					const File = plus.android.importClass('java.io.File');
+					const FileOutputStream = plus.android.importClass('java.io.FileOutputStream');
+					const OutputStreamWriter = plus.android.importClass('java.io.OutputStreamWriter');
 			
+					const state = Environment.getExternalStorageState();
+					if (state !== Environment.MEDIA_MOUNTED) {
+					  throw new Error('外部存储不可用');
+					}
+			
+					let publicDownloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+			
+					if (publicDownloadsDir === null || publicDownloadsDir === undefined) {
+					  const externalStorageDir = Environment.getExternalStorageDirectory();
+					  if (externalStorageDir !== null) {
+						publicDownloadsDir = new File(externalStorageDir, 'Download');
+						console.log('使用备用下载目录路径:', publicDownloadsDir.getAbsolutePath());
+					  } else {
+						throw new Error('无法获取任何外部存储目录，设备可能不支持');
+					  }
+					} else {
+					  console.log('公共下载目录:', publicDownloadsDir.getAbsolutePath());
+					}
+			
+					if (!publicDownloadsDir.exists()) {
+					  const created = publicDownloadsDir.mkdirs();
+					  if (!created) {
+						throw new Error('下载目录不存在且无法创建');
+					  }
+					}
+			
+					if (!publicDownloadsDir.canWrite()) {
+					  throw new Error('下载目录不可写，请检查权限');
+					}
+			
+					const accountDataDir = new File(publicDownloadsDir, 'AccountData');
+					if (!accountDataDir.exists()) {
+					  const created = accountDataDir.mkdirs();
+					  console.log('创建AccountData目录结果:', created);
+					  if (!created) {
+						throw new Error('无法创建AccountData目录');
+					  }
+					}
+			
+					const jsonFile = new File(accountDataDir, fileName);
+					const absolutePath = jsonFile.getAbsolutePath();
+					console.log('目标文件完整路径:', absolutePath);
+			
+					if (jsonFile.exists()) {
+					  jsonFile.delete();
+					}
+			
+					const fos = new FileOutputStream(jsonFile);
+					const writer = new OutputStreamWriter(fos, 'UTF-8');
+			
+					const bom = '\ufeff';
+					const fullContent = bom + "1";
+			
+					writer.write(fullContent);
+					writer.flush();
+					writer.close();
+					fos.close();
+			
+					const fileSize = jsonFile.length();
+					console.log('JSON文件写入完成，大小:', fileSize);
+					try{
+						const Environment = plus.android.importClass('android.os.Environment')
+						const File = plus.android.importClass('java.io.File')
+						const FileInputStream = plus.android.importClass('java.io.FileInputStream')
+						const InputStreamReader = plus.android.importClass('java.io.InputStreamReader')
+						const BufferedReader = plus.android.importClass('java.io.BufferedReader')
+						const StringBuilder = plus.android.importClass('java.lang.StringBuilder')
+						
+						// 构造 record_info.json 文件路径
+						const recordInfoFile = new File(accountDataDir, 'record_info.json')
+						
+						// 检查文件是否存在
+						if (!recordInfoFile.exists()) {
+							uni.showToast({
+								title: '无历史资料',
+								icon: 'success'
+							})
+						    console.log('文件不存在:', recordInfoFile.getAbsolutePath())
+						    return
+						}
+						
+						// 读取文件内容
+						const fis = new FileInputStream(recordInfoFile) // ← 修正：使用 recordInfoFile，不是 fileEntry
+						const isr = new InputStreamReader(fis, 'UTF-8')
+						const br = new BufferedReader(isr)
+						
+						const sb = new StringBuilder()
+						let line
+						while ((line = br.readLine()) !== null) {
+						    sb.append(line).append('\n')
+						}
+						
+						br.close()
+						isr.close()
+						fis.close()
+						
+						let content = sb.toString()
+						console.log('文件内容读取完成，长度:', content.length)
+						console.log('文件内容:', content)
+						// 移除 UTF-8 BOM
+						if (content.startsWith('\uFEFF')) {
+						  content = content.substring(1);
+						}
+						
+						let arr = JSON.parse(content);
+						console.log("arr",arr);
+						if(arr && arr.length>0){
+							//循环处理每个对象
+							arr.forEach(e=>{
+								let key = Object.keys(e)[0];
+								let value = e[key];
+								uni.setStorageSync(key, value);
+							});
+						uni.showToast({
+							title: '数据已恢复',
+							icon: 'success'
+						})
+						return;
+						}
+						
+					}catch(e){
+						console.log("存储数据error",e)
+					}
+				  } catch (error) {
+					console.error('原生文件操作失败:', error);
+				  }
+				}).catch((err) => {
+				  console.log("error",err)
+				});
+			},
 			exportData() {
 				const records = uni.getStorageSync('records') || []
 				if (records.length === 0) {

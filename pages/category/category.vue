@@ -123,12 +123,12 @@
 				
 				if (!expenseCategories || expenseCategories.length === 0) {
 					expenseCategories = [...this.defaultExpenseCategories]
-					uni.setStorageSync('expenseCategories', expenseCategories)
+					this.$saveStorageAndFile('expenseCategories', expenseCategories)
 				}
 				
 				if (!incomeCategories || incomeCategories.length === 0) {
 					incomeCategories = [...this.defaultIncomeCategories]
-					uni.setStorageSync('incomeCategories', incomeCategories)
+					this.$saveStorageAndFile('incomeCategories', incomeCategories)
 				}
 				
 				this.expenseCategories = expenseCategories

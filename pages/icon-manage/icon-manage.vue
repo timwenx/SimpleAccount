@@ -199,12 +199,12 @@
 				
 				if (!expenseCategories || expenseCategories.length === 0) {
 					expenseCategories = this.defaultExpenseCategories
-					uni.setStorageSync('expenseCategories', expenseCategories)
+					this.$saveStorageAndFile('expenseCategories', expenseCategories)
 				}
 				
 				if (!incomeCategories || incomeCategories.length === 0) {
 					incomeCategories = this.defaultIncomeCategories
-					uni.setStorageSync('incomeCategories', incomeCategories)
+					this.$saveStorageAndFile('incomeCategories', incomeCategories)
 				}
 				
 				this.expenseCategories = expenseCategories
@@ -302,7 +302,7 @@
 				}
 				
 				// 保存到本地存储
-				uni.setStorageSync(storageKey, categories)
+				this.$saveStorageAndFile(storageKey, categories)
 				
 				this.closeModal()
 				
@@ -333,7 +333,7 @@
 							}
 							
 							// 保存到本地存储
-							uni.setStorageSync(storageKey, filteredCategories)
+							this.$saveStorageAndFile(storageKey, filteredCategories)
 							
 							uni.showToast({
 								title: '删除成功',
@@ -354,8 +354,8 @@
 							this.expenseCategories = [...this.defaultExpenseCategories]
 							this.incomeCategories = [...this.defaultIncomeCategories]
 							
-							uni.setStorageSync('expenseCategories', this.expenseCategories)
-							uni.setStorageSync('incomeCategories', this.incomeCategories)
+							this.$saveStorageAndFile('expenseCategories', this.expenseCategories)
+							this.$saveStorageAndFile('incomeCategories', this.incomeCategories)
 							
 							uni.showToast({
 								title: '已恢复默认分类',

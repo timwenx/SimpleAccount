@@ -95,6 +95,9 @@
 		<view class="input-container-fixed">
 			<!-- 功能按钮区域 -->
 			<view class="function-buttons">
+				<button class="clear-btn" @click="goToAdd">
+					🧾 手动记账
+				</button>
 				<button class="clear-btn" @click="clearChatHistory">
 					🗑️ 清空记录
 				</button>
@@ -637,13 +640,19 @@
 			saveChatHistory() {
 				// 只保存最近50条消息
 				const historyToSave = this.messages.slice(-50)
-				uni.setStorageSync('chatHistory', historyToSave)
+				this.$saveStorageAndFile('chatHistory', historyToSave)
 			},
 			
 			// 快捷输入
 			quickInput(text) {
 				this.inputText = text
 				this.sendMessage()
+			},
+			
+			goToAdd() {
+				uni.navigateTo({
+					url: '/pages/add/add'
+				})
 			},
 			
 			// 清空聊天记录
@@ -766,13 +775,35 @@
 				
 				return response.data
 			},
-			
+			removeDuplicateRecords(recordsData){
+				if (!recordsData || recordsData.length === 0) {
+					return recordsData
+				}
+				const uniqueRecords = []
+				const recordSet = new Set()
+				for (const record of recordsData) {
+					const recordKey = `${record.type}|${record.amount}|${record.category}|${record.time || ''}|${record.note || ''}`
+					if (!recordSet.has(recordKey)) {
+						recordSet.add(recordKey)
+						uniqueRecords.push(record)
+					}
+				}
+				
+				return uniqueRecords
+			},
 			// 处理AI响应
 			handleAIResponse(response, userMessage) {
 				const aiReply = response.choices?.[0]?.message?.content || '抱歉，我没有理解你的意思'
 				
 				// 尝试解析记账信息（支持单笔或多笔）
-				const recordsData = this.parseRecordsData(aiReply)
+				let recordsData = this.parseRecordsData(aiReply)
+				console.log('解析结果:', recordsData)
+				//相同记账信息去重
+				try{
+					recordsData = this.removeDuplicateRecords(recordsData)
+				}catch(e){
+					console.log('去重失败:', e)
+				}
 				console.log('解析到的记账数据:', recordsData)
 				if (recordsData && recordsData.length > 0) {
 					// 包含记账信息的回复 - 清理掉JSON代码块和对象
@@ -812,10 +843,12 @@
 								return validRecords
 							}
 						} else if (this.validateRecordData(data)) {
+							console.log('解析到的单笔记账数据:', [data])
 							return [data]
 						}
 					} catch (error) {
 						// 直接解析失败，继续尝试其他方法
+						console.log('直接解析失败:', error)
 					}
 					// 先尝试提取markdown代码块中的JSON
 					const codeBlockMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\}|\[[\s\S]*?\])\s*```/);
@@ -992,8 +1025,7 @@
 					// 保存到本地存储
 					const records = uni.getStorageSync('records') || []
 					records.push(newRecord)
-					uni.setStorageSync('records', records)
-					
+					this.$saveStorageAndFile('records', records)
 					resolve({ 
 						success: true, 
 						record: newRecord,
@@ -1094,8 +1126,7 @@
 					
 					const records = uni.getStorageSync('records') || []
 					records.push(newRecord)
-					uni.setStorageSync('records', records)
-					
+					this.$saveStorageAndFile('records', records)
 					message.recordsData[recordIndex].recorded = true
 					
 					const allRecorded = message.recordsData.every(r => r.recorded)
@@ -1113,6 +1144,7 @@
 					this.addMessage('assistant', `✅ 已记录${record.type === 'expense' ? '支出' : '收入'}¥${record.amount} (${record.category})`)
 					
 				} catch (error) {
+					console.log('记录失败:', error)
 					uni.showToast({
 						title: '记账失败，请重试',
 						icon: 'error'
@@ -1224,8 +1256,8 @@
 					})
 				})
 				
-				uni.setStorageSync('expenseCategories', expenseCategories)
-				uni.setStorageSync('incomeCategories', incomeCategories)
+				this.$saveStorageAndFile('expenseCategories', expenseCategories)
+				this.$saveStorageAndFile('incomeCategories', incomeCategories)
 				
 				return addedCategories
 			},
@@ -1636,6 +1668,15 @@
 		box-sizing: border-box;
 	}
 	
+	.clear-btn:first-child {
+		margin-left: auto;
+		margin-right: 30rpx;
+	}
+
+	.clear-btn:last-child {
+		margin-left: 30rpx;
+		margin-right: auto;
+	}
 	.clear-btn {
 		padding: 12rpx 22rpx;
 		background: linear-gradient(135deg, #FFF5F5, #FFEBEB);
@@ -1645,8 +1686,10 @@
 		line-height: 1;
 		border: none;
 		box-shadow: 0 2rpx 6rpx rgba(231, 76, 60, 0.12);
+		/* margin-left: auto;
+		margin-right: auto; */
 	}
-	
+
 	.clear-btn:active {
 		background: #FFE5E5;
 		transform: scale(0.95);

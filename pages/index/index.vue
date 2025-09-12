@@ -94,7 +94,7 @@
 		
 		<!-- 快捷添加按钮 -->
 		<view class="quick-add">
-			<button class="add-btn" @click="goToAdd" type="primary">记一笔</button>
+			<button class="add-btn" @click="goToChat" type="primary">记一笔</button>
 		</view>
 		
 		<!-- 账单列表 -->
@@ -1055,7 +1055,6 @@
 			
 			// 计算各分类的支出 - 与预算管理页面保持一致
 			calculateCategorySpending() {
-				console.log('首页开始计算分类支出，预算分类数量:', this.categoryBudgets.length)
 				
 				// 为每个预算分类计算相应时间范围的支出
 				this.categoryBudgets.forEach(budget => {
@@ -1087,7 +1086,6 @@
 					
 					const timeUnitName = this.getTimeUnitName(budget.timeUnit)
 					const timeRangeDesc = this.getTimeRangeDesc(budget.timeUnit, budget.quarterStartMonth)
-					console.log(`首页分类 ${budget.categoryName} ${timeRangeDesc} ${timeUnitName}支出:`, categorySpending)
 					budget.spentAmount = categorySpending
 				})
 				
@@ -1141,7 +1139,6 @@
 						const month2 = currentQuarterStartMonth + 1 > 12 ? currentQuarterStartMonth + 1 - 12 : currentQuarterStartMonth + 1
 						const month3 = currentQuarterStartMonth + 2 > 12 ? currentQuarterStartMonth + 2 - 12 : currentQuarterStartMonth + 2
 						
-						console.log(`首页季度计算: 开始月份${quarterStartMonth}, 当前月份${currentMonth}, 第${quarterNumber + 1}季度(${month1}-${month2}-${month3})`)
 						
 						return allRecords.filter(record => {
 							const recordDate = new Date(record.time)
@@ -1199,12 +1196,12 @@
 						const isSameCategory = record.categoryId == budget.categoryId || record.categoryName === budget.categoryName
 						
 						if (isExpense && isSameCategory) {
-							console.log(`首页匹配到${this.getTimeUnitName(budget.timeUnit)}支出记录:`, {
-								amount: record.amount,
-								category: record.categoryName,
-								date: record.time,
-								timeUnit: budget.timeUnit
-							})
+							// console.log(`首页匹配到${this.getTimeUnitName(budget.timeUnit)}支出记录:`, {
+							// 	amount: record.amount,
+							// 	category: record.categoryName,
+							// 	date: record.time,
+							// 	timeUnit: budget.timeUnit
+							// })
 						}
 						
 						return isExpense && isSameCategory
